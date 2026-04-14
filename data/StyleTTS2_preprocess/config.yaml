@@ -1,0 +1,176 @@
+#  config.yaml — Pipeline 7 bước xử lý audio giọng Nguyễn Ngọc Ngạn
+#  Mục tiêu: Dataset sạch cho Fine-tuning StyleTTS2-lite-vi
+# Tất cả 7 script đều đọc từ file này.
+# Chỉnh sửa tại đây trước khi chạy từng bước.
+
+#  ĐƯỜNG DẪN CHÍNH
+paths:
+  # Thư mục chứa file audio gốc (.mp3 / .wav / .flac)
+  input_dir: "D:/HUST_Project/Project_Final/data/raw_audio"
+
+  # Thư mục làm việc trung gian (tự tạo, có thể xóa sau khi xong)
+  work_dir: "./workdir"
+
+  # Thư mục output cuối cùng (dataset sẵn sàng cho StyleTTS2)
+  output_dir: "./output_dataset"
+
+  # (Tùy chọn) File reference giọng Ngạn SẠCH để Wespeaker so sánh.
+  # Để trống ("") nếu không có — pipeline sẽ tự bootstrap từ dominant speaker.
+  reference_audio: ""
+
+#  BƯỚC 1: VOCAL ISOLATION — Demucs
+step01:
+  # Model Demucs: "htdemucs_ft" (chất lượng cao nhất) hoặc "htdemucs" (nhanh hơn)
+  demucs_model: "htdemucs_ft"
+
+  # True = chạy trên CPU (chậm nhưng an toàn nếu VRAM thiếu khi song song)
+  # False = chạy trên GPU (khuyến nghị)
+  cpu_only: false
+
+  # Bỏ qua file nếu output đã tồn tại (cache)
+  skip_existing: true
+
+#  BƯỚC 2: AUDIO RESTORATION — DeepFilterNet
+step02:
+  # Phiên bản DeepFilterNet: "DeepFilterNet3" (mới nhất, tốt nhất)
+  # Hoặc "DeepFilterNet2" nếu gặp lỗi cài đặt
+  model_version: "DeepFilterNet3"
+
+  # Mức độ lọc noise (0.0 - 1.0)
+  # 0.97 = lọc mạnh (khuyến nghị cho audio có nhiều reverb/noise còn sót sau Demucs)
+  attenuation_limit: 0.85
+
+  # True = chạy trên GPU, False = CPU (DeepFilterNet nhẹ, CPU vẫn nhanh)
+  use_gpu: true
+
+  skip_existing: true
+
+#  BƯỚC 3: SPEAKER DIARIZATION - Pyannote
+step03:
+  # HuggingFace token (bắt buộc cho pyannote)
+  # Khuyến nghị: dùng biến môi trường HF_API_KEY thay vì điền trực tiếp
+  hf_token: ${HF_API_KEY}  # Lấy từ biến môi trường HF_API_KEY
+
+  # Model pyannote diarization
+  # pyannote/speaker-diarization-3.1: SOTA, nội bộ dùng wespeaker-ResNet34
+  diarization_model: "pyannote/speaker-diarization-3.1"
+ 
+  # Số speaker tối đa ước tính trong 1 file audio
+  # Audiobook Ngạn: thường có 2 người (Ngạn + host nữ), đặt 5 để an toàn
+  # Tăng lên nếu có nhiều guest speaker hơn
+  max_speakers: 5
+ 
+  # Khoảng trống tối đa để gộp 2 segment cùng speaker thành 1 (giây)
+  # 0.5s: phù hợp với ngữ điệu tự nhiên (dừng giữa câu của Ngạn)
+  # Tăng lên 1.0s nếu Ngạn hay ngừng dài giữa chừng
+  merge_gap_s: 1.0
+ 
+  # --- Thông số cắt segment ---
+  # Thời lượng tối thiểu của 1 segment sau khi cắt (giây)
+  # StyleTTS2-lite-vi yêu cầu: 2-18 giây
+  min_duration_s: 3.0
+ 
+  # Thời lượng tối đa của 1 segment (giây)
+  max_duration_s: 15.0
+ 
+  # Khoảng im lặng tối thiểu (ms) để cắt tại đó khi split đoạn dài
+  split_on_silence_ms: 1000
+ 
+  # Padding thêm vào đầu/cuối mỗi segment (ms) để tránh cắt sát lời
+  segment_padding_ms: 100
+ 
+  skip_existing: true
+
+#  BƯỚC 4: SPEAKER FILTER — Pyannote embedding/ECAPA-TDNN
+step04:
+  # Model Pyannote embedding để trích xuất speaker embedding
+  # Tương thích với model pyannote embedding mà pyannote 3.1 dùng nội bộ
+  # pyannote/embedding_model: "pyannote/embedding"
+  pyannote_embedding_model: "pyannote/embedding"
+ 
+  # Cosine similarity threshold để kết luận "đây là giọng Ngạn"
+  # Range [0, 1]. Bắt đầu với 0.70, điều chỉnh nếu:
+  #   - Bỏ sót giọng Ngạn → giảm xuống 0.60
+  #   - Còn lẫn giọng nữ  → tăng lên 0.75
+  # Dùng: python step04_speaker_filter.py --inspect để xem phân phối score
+  similarity_threshold: 0.50
+ 
+  # Số slice dùng để xây dựng reference embedding (N slice DÀI NHẤT)
+  # Slice dài → ít bị nhiễu từ boundary diarization → reference chuẩn hơn
+  n_bootstrap_segments: 50
+ 
+  # Thời lượng tối thiểu của slice dùng làm bootstrap reference (giây)
+  min_bootstrap_duration_s: 5.0
+ 
+  skip_existing: true
+
+#  BƯỚC 5: TRANSCRIPTION — Faster-Whisper
+step05:
+  # Model Whisper: "large-v3" (tốt nhất), "medium" (cân bằng), "small" (nhanh)
+  # Với RTX 3050Ti 4GB VRAM: khuyến nghị "medium" hoặc "large-v3" với int8
+  whisper_model: "large-v3"
+
+  # Compute type: "int8" (tiết kiệm VRAM), "float16" (nhanh hơn nếu đủ VRAM)
+  compute_type: "int8"
+
+  # Device: "cuda" hoặc "cpu"
+  device: "cuda"
+
+  # Ngôn ngữ audio (để "vi" để Whisper không mất thời gian detect)
+  language: "vi"
+
+  # Beam size cho decoding (lớn hơn = chính xác hơn nhưng chậm hơn)
+  beam_size: 6
+
+  # Lọc transcript rỗng hoặc chỉ có ký tự đặc biệt
+  filter_empty_transcripts: true
+
+  # Xóa segment nếu transcript quá ngắn (ít hơn N từ)
+  min_words: 2
+
+  skip_existing: true
+
+#  BƯỚC 6: QUALITY CHECK — DNSMOS
+step06:
+  # Ngưỡng DNSMOS Overall score để giữ lại segment
+  # Thang điểm 1-5. Tài liệu yêu cầu > 3.0
+  min_overall_mos: 2.0
+
+  # Ngưỡng phụ (tùy chọn, để 0.0 để bỏ qua)
+  min_sig_mos: 2.0   # Signal quality
+  min_bak_mos: 2.0   # Background noise quality
+
+  # DNSMOS model: "DNSMOS" (chạy trên CPU, không cần GPU)
+  # Sử dụng implementation từ Microsoft DNSMOS hoặc onnxruntime
+  use_gpu: false
+
+  # Lưu file CSV với score của từng segment (để debug/inspect)
+  save_score_csv: true
+
+  skip_existing: false  # Quality check luôn chạy lại để đảm bảo
+
+#  BƯỚC 7: FORMATTING — chuẩn StyleTTS2-lite-vi
+step07:
+  # Chuẩn StyleTTS2-lite-vi
+  sample_rate: 24000      # 24kHz
+  channels: 1             # Mono
+  bit_depth: 16           # 16-bit PCM
+  format: "wav"
+
+  # Normalize âm lượng
+  # Target LUFS (EBU R128). -20 LUFS là chuẩn phổ biến cho TTS dataset
+  target_lufs: -20.0
+
+  # Thêm padding im lặng ở đầu/cuối mỗi file (ms)
+  silence_pad_ms: 50
+
+  # Tên prefix cho file output (để trống = dùng tên file gốc)
+  output_prefix: "ngan"
+
+  # Format file list cuối cùng
+  # "lj" = LJSpeech format: "path|text" (tương thích nhiều TTS framework)
+  # "json" = JSON format
+  filelist_format: "lj"
+
+  # Encoding của file list
+  filelist_encoding: "utf-8"

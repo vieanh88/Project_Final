@@ -1,0 +1,23 @@
+# Bỏ qua file log
+*.log
+# Bỏ qua file data 
+data/raw_audio/
+data/StyleTTS2_preprocess/dnsmos_models/
+data/StyleTTS2_preprocess/output_dataset/
+data/StyleTTS2_preprocess/workdir/
+# Bỏ qua file .env
+.env
+# Bỏ qua môi trường venv
+.venv/
+# Bỏ qua file vscode
+.vscode/
+# Bỏ qua file data mp3 csv ...
+*.csv
+*.rttm
+*.mp3
+*.m4a
+*.wav
+*.json
+# Bỏ qua file cache
+__pycache__/
+hf_cache/

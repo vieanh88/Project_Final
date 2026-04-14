@@ -1,0 +1,64 @@
+#  requirements.txt — Pipeline 7 bước cho StyleTTS2-lite-vi
+
+# CÀI ĐẶT THEO THỨ TỰ:
+#
+# --- Bước 0: PyTorch (PHẢI CÀI TRƯỚC) ---
+# Kiểm tra CUDA: nvidia-smi
+# CUDA 12.4: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+#
+# --- Bước 1: Cài requirements này ---
+# pip install -r requirements.txt
+#
+# --- Bước 2: Cài FFmpeg (bắt buộc cho Demucs xử lý MP3) ---
+# Windows: choco install ffmpeg  |  Ubuntu: sudo apt install ffmpeg
+#
+# --- Bước 3: Accept terms pyannote trên HuggingFace ---
+# https://huggingface.co/pyannote/voice-activity-detection
+# https://huggingface.co/pyannote/segmentation-3.0
+#
+# --- Bước 4: Biến môi trường HF token ---
+# Windows: set HF_TOKEN=hf_xxx  |  Linux: export HF_TOKEN=hf_xxx
+# =============================================================
+
+# ── CORE ──────────────────────────────────────────────────────
+pyyaml==6.0.3           # Đọc config.yaml (dùng trong tất cả 7 bước)
+tqdm==4.67.3            # Progress bars
+
+# ── BƯỚC 1: VOCAL ISOLATION ───────────────────────────────────
+demucs==4.0.1           # Vocal separation
+
+# ── BƯỚC 2: AUDIO RESTORATION ─────────────────────────────────
+deepfilternet==0.5.6    # Noise reduction & de-reverb
+# Nếu lỗi khi cài deepfilternet:
+#   pip install deepfilternet --extra-index-url https://download.pytorch.org/whl/cu124
+
+# ── BƯỚC 3: VAD SLICING ───────────────────────────────────────
+pyannote.audio==3.1.1   # Voice Activity Detection
+pyannote.core==5.0.0
+torchaudio==2.6.0+cu124 # Pyannote yêu cầu torchaudio cùng phiên bản với torch, cài trước torch rồi cài torchaudio sau để tránh lỗi version mismatch
+torchvision==0.21.0+cu124
+
+# ── BƯỚC 4: SPEAKER FILTER ────────────────────────────────────
+# wespeaker==1.2.2        # Speaker embedding & verification
+# Cài thủ công nếu pip không có:
+#   pip install git+https://github.com/wenet-e2e/wespeaker.git
+# peft==0.11.1
+
+# ── BƯỚC 5: TRANSCRIPTION ─────────────────────────────────────
+faster-whisper==1.2.1    # Speech-to-text
+openai-whisper==20250625 # Phiên bản mới nhất của OpenAI Whisper (có cải tiến về độ chính xác và tốc độ)
+
+# ── BƯỚC 6: QUALITY CHECK ─────────────────────────────────────
+onnxruntime-gpu==1.23.2 # DNSMOS chạy qua ONNX
+# Model DNSMOS sẽ được tự động download khi chạy step06 lần đầu
+requests==2.23.5        # Để download DNSMOS model nếu chưa có
+
+# ── BƯỚC 7: FORMATTING ────────────────────────────────────────
+librosa==0.11.0         # Audio processing & resampling
+soundfile==0.13.1       # Đọc/ghi WAV chất lượng cao
+scipy==1.15.3           # Thống kê, phân tích dữ liệu (quan trọng)
+numpy==1.26.4           # Xử lý mảng số liệu (quan trọng)
+pyloudnorm==0.2.0       # Normalize LUFS chính xác theo EBU R128
+
+# ── OPTIONAL ──────────────────────────────────────────────────
+huggingface-hub==0.23.4  # Thường đã được cài kèm pyannote - cao hơn sẽ bị lỗi use_auth_token
