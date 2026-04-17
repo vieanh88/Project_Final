@@ -1,0 +1,121 @@
+# =============================================================================
+#  config.yaml — Cấu hình pipeline 5 bước xử lý dataset ViVoice
+#  Mục tiêu: Chuẩn bị dataset nền (Base Dataset) cho StyleTTS2 tiếng Việt
+#  Tất cả 5 script trong folder prepare_vivoice/ đều đọc từ file này.
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ĐƯỜNG DẪN DỰ ÁN
+# ─────────────────────────────────────────────────────────────────────────────
+paths:
+  # Thư mục gốc dự án (tất cả đường dẫn tương đối sẽ dựa trên thư mục này)
+  project_root: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"
+
+  # Thư mục làm việc trung gian (cache parquet, log, temp files)
+  work_dir: "./workdir"
+
+  # Thư mục output chứa dataset đã xử lý xong
+  output_dir: "./output"
+
+  # Đường dẫn tuyệt đối đến step08_phonemize.py (module G2P đã fix bug)
+  phonemize_script: "D:/HUST_Project/Project_Final/data/StyleTTS2_preprocess/step08_phonemize.py"
+
+  # Đường dẫn tuyệt đối đến repo StyleTTS2 gốc
+  styletts2_root: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/StyleTTS2"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  BƯỚC 1: DOWNLOAD — Tải dataset ViVoice từ Hugging Face
+# ─────────────────────────────────────────────────────────────────────────────
+step1_download:
+  # Tên dataset trên Hugging Face Hub
+  dataset_name: "capleaf/viVoice"
+
+  # (Tùy chọn) Subset/config cụ thể của dataset. Để null nếu không có.
+  dataset_config: null
+
+  # (Tùy chọn) Split cụ thể cần tải. Để null để tải tất cả splits.
+  # Ví dụ: "train", "test", hoặc null
+  dataset_split: null
+
+  # Thư mục cache lưu file parquet đã tải
+  # (Nằm trong work_dir, tự động tạo)
+  cache_subdir: "hf_cache"
+
+  # Số luồng tải song song (tăng nếu mạng nhanh)
+  num_proc: 6
+
+  # Bỏ qua bước tải nếu cache đã tồn tại
+  skip_existing: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  BƯỚC 2: EXTRACT AUDIO — Giải mã parquet → file .wav chuẩn
+# ─────────────────────────────────────────────────────────────────────────────
+step2_extract:
+  # Sample rate đích (StyleTTS2 yêu cầu 24kHz)
+  target_sr: 24000
+
+  # Số kênh đích (Mono)
+  channels: 1
+
+  # Bit depth (16-bit PCM)
+  bit_depth: 16
+
+  # Format output
+  format: "wav"
+
+  # Thư mục lưu file .wav đã xử lý (nằm trong output_dir)
+  wav_subdir: "vivoice_clean_wavs"
+
+  # Số worker xử lý song song (CPU-bound task)
+  num_workers: 4
+
+  # Bỏ qua file nếu .wav đã tồn tại
+  skip_existing: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  BƯỚC 3: PHONEMIZE — Chuyển text thô → chuỗi âm vị IPA
+# ─────────────────────────────────────────────────────────────────────────────
+step3_phonemize:
+  # File tạm chứa danh sách text thô (1 dòng = 1 câu)
+  # Được tạo tự động bởi step2, lưu trong work_dir
+  raw_text_file: "raw_texts.txt"
+
+  # File output chứa chuỗi phoneme tương ứng
+  phoneme_text_file: "phoneme_texts.txt"
+
+  # Bỏ qua nếu file phoneme đã tồn tại
+  skip_existing: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  BƯỚC 4: BUILD VOCAB — Xây dựng từ điển âm vị (Phoneme Vocabulary)
+# ─────────────────────────────────────────────────────────────────────────────
+step4_vocab:
+  # File output chứa mapping ký tự → ID và tổng n_token
+  vocab_file: "phoneme_vocab.json"
+
+  # Có bao gồm các ký tự đặc biệt không:
+  # <pad> = 0, <unk> = 1, <bos> = 2, <eos> = 3
+  include_special_tokens: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  BƯỚC 5: MAKE FILELIST — Tạo file train/val list chuẩn StyleTTS2
+# ─────────────────────────────────────────────────────────────────────────────
+step5_filelist:
+  # Tỷ lệ train/val split (0.95 = 95% train, 5% val)
+  train_ratio: 0.95
+
+  # Random seed cho việc shuffle và split (đảm bảo reproducibility)
+  random_seed: 42
+
+  # Tên file output
+  train_list: "vivoice_train_list.txt"
+  val_list: "vivoice_val_list.txt"
+
+  # Speaker ID mặc định cho toàn bộ ViVoice
+  # (ViVoice có cột "channel" nhưng ta gom chung 1 speaker group)
+  # Nếu muốn multi-speaker, đặt: use_channel_as_speaker: true
+  default_speaker_id: 1
+  use_channel_as_speaker: false
+
+  # Format 1 dòng: wav_path|phoneme_text|speaker_id
+  delimiter: "|"

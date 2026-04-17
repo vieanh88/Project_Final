@@ -1,0 +1,150 @@
+# =============================================================================
+#  CONFIG STAGE 3: FINE-TUNE GIỌNG BÁC NGẠN (THE GHOST STORY SOUL)
+# =============================================================================
+#  Mục tiêu   : Chuyển đổi âm sắc (timbre) từ giọng ViVoice đa dạng sang
+#                duy nhất giọng trầm ấm, rùng rợn của nghệ sĩ Nguyễn Ngọc Ngạn.
+#  Script      : train_finetune.py (từ repo gốc yl4579/StyleTTS2)
+#  Dataset     : Giọng Bác Ngạn (đã qua pipeline 7 bước) + OOD Text
+#  JAT & SLM   : GIỮ BẬT (duy trì độ biểu cảm)
+#  Batch size  : NHỎ (4-8)
+#  LR          : CỰC THẤP (1e-5) chống Catastrophic Forgetting
+#  Pre-trained : load_only_params: true (lấy weights, làm mới optimizer)
+#
+#  *** LƯU Ý: Config này dựa trên schema config_ft.yml (khác với config.yml) ***
+# =============================================================================
+
+# --- Đường dẫn & Checkpoint ---
+log_dir: "Models/NganFinetune"
+save_freq: 5                            # Lưu mỗi 5 epochs
+log_interval: 10
+device: "cuda"
+
+# --- Training Schedule ---
+# config_ft.yml chỉ có 1 trường "epochs" (không tách 1st/2nd)
+epochs: 50                              # Fine-tune tối đa 50 epochs
+                                        # Kiểm tra chất lượng mỗi 5-10 epochs
+                                        # Dừng sớm khi nghe đủ tốt
+batch_size: 6                           # Cân bằng VRAM: thử 6-8
+max_len: 400
+
+# --- Checkpoint Loading ---
+# train_wrapper.py sẽ tự động điền checkpoint tốt nhất từ Stage 2
+pretrained_model: ""                    # ← AUTO-FILLED by train_wrapper.py
+second_stage_load_pretrained: true      # Checkpoint từ Stage 2 (2nd stage format)
+load_only_params: true                  # *** CHỈ LẤY WEIGHTS, LÀM MỚI OPTIMIZER ***
+                                        # Reset optimizer state để tránh momentum cũ
+                                        # gây dao động khi chuyển sang data mới
+
+# --- Pre-trained Components ---
+F0_path: "Utils/JDC/bst.t7"
+ASR_config: "Utils/ASR/config.yml"
+ASR_path: "Utils/ASR/epoch_00080.pth"
+PLBERT_dir: "plbert_checkpoints/"       # ← PL-BERT tiếng Việt
+
+# --- Data ---
+# *** ĐỔI SANG DATASET BÁC NGẠN ***
+data_params:
+  train_data: "data_pipeline/prepare_ngan/output/ngan_train_list.txt"
+  val_data: "data_pipeline/prepare_ngan/output/ngan_val_list.txt"
+  root_path: ""
+  OOD_data: "data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"   # Giữ OOD
+  min_length: 50
+
+# --- Audio Preprocessing ---
+preprocess_params:
+  sr: 24000
+  spect_params:
+    n_fft: 2048
+    win_length: 1200
+    hop_length: 300
+
+# --- Model Architecture ---
+# *** config_ft.yml dùng multispeaker: true và HiFi-GAN decoder ***
+model_params:
+  multispeaker: true                    # Fine-tune cần speaker embedding
+
+  dim_in: 64
+  hidden_dim: 512
+  max_conv_dim: 512
+  n_layer: 3
+  n_mels: 80
+
+  n_token: 178                         # ← PLACEHOLDER: auto-inject by train_wrapper.py
+  max_dur: 50
+  style_dim: 128
+
+  dropout: 0.2
+
+  # Decoder (HiFi-GAN — config_ft.yml gốc dùng hifigan cho fine-tune)
+  decoder:
+    type: 'hifigan'
+    resblock_kernel_sizes: [3, 7, 11]
+    upsample_rates: [10, 5, 3, 2]
+    upsample_initial_channel: 512
+    resblock_dilation_sizes: [[1, 3, 5], [1, 3, 5], [1, 3, 5]]
+    upsample_kernel_sizes: [20, 10, 6, 4]
+
+  # SLM (WavLM) — GIỮ ACTIVE
+  slm:
+    model: 'microsoft/wavlm-base-plus'
+    sr: 16000
+    hidden: 768
+    nlayers: 13
+    initial_channel: 64
+
+  # Style Diffusion — GIỮ ACTIVE
+  diffusion:
+    embedding_mask_proba: 0.1
+    transformer:
+      num_layers: 3
+      num_heads: 8
+      head_features: 64
+      multiplier: 2
+    dist:
+      sigma_data: 0.2
+      estimate_sigma_data: true
+      mean: -3.0
+      std: 1.0
+
+# --- Loss Weights ---
+loss_params:
+  lambda_mel: 5.0
+  lambda_gen: 1.0
+  lambda_slm: 1.0
+
+  # TMA
+  lambda_mono: 1.0
+  lambda_s2s: 1.0
+
+  # Expressive losses — TẤT CẢ ACTIVE
+  lambda_F0: 1.0
+  lambda_norm: 1.0
+  lambda_dur: 1.0
+  lambda_ce: 20.0
+  lambda_sty: 1.0
+  lambda_diff: 1.0
+
+  # *** JAT GIỮ BẬT: duy trì biểu cảm khi fine-tune ***
+  diff_epoch: 0               # Style diffusion: BẬT từ epoch 0
+  joint_epoch: 0              # Joint training:  BẬT từ epoch 0
+
+# --- Optimizer ---
+# *** LR CỰC THẤP: Bảo vệ kiến thức phát âm tiếng Việt ***
+optimizer_params:
+  lr: 0.0001                  # LR chính (general modules)
+  bert_lr: 0.00001            # LR cho PL-BERT (rất thấp, gần như freeze)
+  ft_lr: 0.00001              # *** LR cho acoustic modules: 1e-5 ***
+                              # Giá trị này cực quan trọng:
+                              # - Quá cao (1e-4) → Catastrophic Forgetting
+                              # - Quá thấp (1e-6) → Không học được giọng Ngạn
+                              # - 1e-5 là sweet spot (theo tài liệu thiết kế)
+
+# --- SLM Adversarial — GIỮ ACTIVE ---
+slmadv_params:
+  min_len: 400
+  max_len: 500
+  batch_percentage: 0.5
+  iter: 10
+  thresh: 5
+  scale: 0.01
+  sig: 1.5

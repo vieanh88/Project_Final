@@ -1,0 +1,140 @@
+# =============================================================================
+#  CONFIG STAGE 1: BASE MODEL — HỌC PHÁT ÂM TIẾNG VIỆT
+# =============================================================================
+#  Mục tiêu   : Mô hình tập trung học alignment giữa phoneme ↔ mel-spectrogram
+#                để phát âm tròn vành rõ chữ tiếng Việt.
+#  Script      : train_first.py (từ repo gốc yl4579/StyleTTS2)
+#  Dataset     : ViVoice (multi-speaker base dataset)
+#  JAT & SLM   : TẮT HOÀN TOÀN (joint_epoch: 9999)
+#  Batch size  : LỚN (16-32) vì VRAM dư dả khi không có JAT
+# =============================================================================
+
+# --- Đường dẫn & Checkpoint ---
+log_dir: "Models/VietnameseBase"
+first_stage_path: ""                    # Để trống (train từ đầu)
+save_freq: 5                            # Lưu checkpoint mỗi 5 epochs
+log_interval: 10                        # Log mỗi 10 steps
+device: "cuda"
+
+# --- Training Schedule ---
+epochs_1st: 100                         # Số epochs cho Stage 1
+epochs_2nd: 0                           # Không dùng (chỉ chạy 1st stage)
+batch_size: 16                          # VRAM 24GB: thử 16 trước, tăng 32 nếu đủ
+max_len: 400                            # Max frames per sample
+
+# --- Checkpoint Loading ---
+pretrained_model: ""                    # Để trống (train từ đầu)
+second_stage_load_pretrained: false
+load_only_params: false
+
+# --- Pre-trained Components ---
+# ĐÃ THAY THẾ: Trỏ về PL-BERT tiếng Việt (train ở Bước C2)
+F0_path: "Utils/JDC/bst.t7"
+ASR_config: "Utils/ASR/config.yml"
+ASR_path: "Utils/ASR/epoch_00080.pth"
+PLBERT_dir: "plbert_checkpoints/"       # ← PL-BERT tiếng Việt
+
+# --- Data ---
+data_params:
+  train_data: "data_pipeline/prepare_vicoice/output/vivoice_train_list.txt"
+  val_data: "data_pipeline/prepare_vicoice/output/vivoice_val_list.txt"
+  root_path: ""                         # Để trống vì filelist đã chứa absolute path
+  OOD_data: ""                          # Không dùng OOD ở Stage 1
+  min_length: 50
+
+# --- Audio Preprocessing ---
+preprocess_params:
+  sr: 24000
+  spect_params:
+    n_fft: 2048
+    win_length: 1200
+    hop_length: 300
+
+# --- Model Architecture ---
+model_params:
+  multispeaker: false                   # ViVoice gom chung 1 speaker group
+
+  dim_in: 64
+  hidden_dim: 512
+  max_conv_dim: 512
+  n_layer: 3
+  n_mels: 80
+
+  n_token: 178                         # ← PLACEHOLDER: train_wrapper.py sẽ tự động
+                                        #    inject giá trị thực từ phoneme_vocab.json
+  max_dur: 50
+  style_dim: 128
+
+  dropout: 0.2
+
+  # Decoder (iSTFTNet — chất lượng cao, nhẹ hơn HiFi-GAN)
+  decoder:
+    type: 'istftnet'
+    resblock_kernel_sizes: [3, 7, 11]
+    upsample_rates: [10, 6]
+    upsample_initial_channel: 512
+    resblock_dilation_sizes: [[1, 3, 5], [1, 3, 5], [1, 3, 5]]
+    upsample_kernel_sizes: [20, 12]
+    gen_istft_n_fft: 20
+    gen_istft_hop_size: 5
+
+  # SLM (WavLM) — vẫn khai báo nhưng KHÔNG active ở Stage 1
+  slm:
+    model: 'microsoft/wavlm-base-plus'
+    sr: 16000
+    hidden: 768
+    nlayers: 13
+    initial_channel: 64
+
+  # Style Diffusion — vẫn khai báo nhưng KHÔNG active ở Stage 1
+  diffusion:
+    embedding_mask_proba: 0.1
+    transformer:
+      num_layers: 3
+      num_heads: 8
+      head_features: 64
+      multiplier: 2
+    dist:
+      sigma_data: 0.2
+      estimate_sigma_data: true
+      mean: -3.0
+      std: 1.0
+
+# --- Loss Weights ---
+loss_params:
+  lambda_mel: 5.0         # Mel reconstruction (CHÍNH)
+  lambda_gen: 1.0         # Generator loss
+  lambda_slm: 1.0         # SLM feature matching
+
+  # TMA (Text-Mel Alignment) — ACTIVE ở Stage 1
+  lambda_mono: 1.0        # Monotonic alignment loss
+  lambda_s2s: 1.0         # Sequence-to-sequence loss
+  TMA_epoch: 10           # Bật TMA từ epoch 10
+
+  # Các loss dưới đây KHÔNG ACTIVE vì joint_epoch = 9999
+  lambda_F0: 1.0
+  lambda_norm: 1.0
+  lambda_dur: 1.0
+  lambda_ce: 20.0
+  lambda_sty: 1.0
+  lambda_diff: 1.0
+
+  # *** CHIẾN LƯỢC TẮT JAT ***
+  diff_epoch: 9999        # Style diffusion: KHÔNG BAO GIỜ kích hoạt
+  joint_epoch: 9999       # Joint training:  KHÔNG BAO GIỜ kích hoạt
+
+# --- Optimizer ---
+optimizer_params:
+  lr: 0.0001              # LR chính cho Stage 1 (1e-4)
+  bert_lr: 0.00001        # LR cho PL-BERT (giữ thấp, không phá pre-trained)
+  ft_lr: 0.00001          # LR cho fine-tune modules (không dùng ở đây)
+
+# --- SLM Adversarial (KHÔNG ACTIVE ở Stage 1 vì joint_epoch = 9999) ---
+slmadv_params:
+  min_len: 400
+  max_len: 500
+  batch_percentage: 0.5
+  iter: 10
+  thresh: 5
+  scale: 0.01
+  sig: 1.5

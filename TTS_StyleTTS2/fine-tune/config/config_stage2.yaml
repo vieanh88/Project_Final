@@ -1,0 +1,141 @@
+# =============================================================================
+#  CONFIG STAGE 2: EXPRESSIVE TRAINING — ĐÁNH THỨC CẢM XÚC
+# =============================================================================
+#  Mục tiêu   : Bật JAT (Joint Adversarial Training) + SLM Discriminator
+#                (WavLM) + Style Diffusion. Dùng OOD Text (50k câu truyện ma)
+#                để dạy Prosodic Encoder dự đoán nhịp điệu cho domain mới.
+#  Script      : train_second.py (từ repo gốc yl4579/StyleTTS2)
+#  Dataset     : ViVoice (base) + OOD Text (truyện ma)
+#  JAT & SLM   : BẬT NGAY LẬP TỨC (joint_epoch: 0, diff_epoch: 0)
+#  Batch size  : NHỎ (4-6) vì JAT + WavLM ngốn VRAM
+#  Pre-trained : Auto-load checkpoint tốt nhất từ Stage 1
+# =============================================================================
+
+# --- Đường dẫn & Checkpoint ---
+log_dir: "Models/VietnameseExpressive"
+save_freq: 5
+log_interval: 10
+device: "cuda"
+
+# --- Training Schedule ---
+epochs_1st: 0                           # Không dùng (đã qua Stage 1)
+epochs_2nd: 50                          # Số epochs cho Stage 2
+batch_size: 4                           # *** GIẢM MẠNH: JAT + WavLM rất tốn VRAM ***
+                                        # Thử 6 nếu VRAM 24GB đủ, giảm 4 nếu OOM
+max_len: 400
+
+# --- Checkpoint Loading ---
+# train_wrapper.py sẽ tự động điền đường dẫn checkpoint tốt nhất từ Stage 1
+pretrained_model: ""                    # ← AUTO-FILLED by train_wrapper.py
+second_stage_load_pretrained: true      # Load toàn bộ state (weights + optimizer)
+load_only_params: false
+
+# --- Pre-trained Components ---
+F0_path: "Utils/JDC/bst.t7"
+ASR_config: "Utils/ASR/config.yml"
+ASR_path: "Utils/ASR/epoch_00080.pth"
+PLBERT_dir: "plbert_checkpoints/"       # ← PL-BERT tiếng Việt
+
+# --- Data ---
+data_params:
+  train_data: "data_pipeline/prepare_vicoice/output/vivoice_train_list.txt"
+  val_data: "data_pipeline/prepare_vicoice/output/vivoice_val_list.txt"
+  root_path: ""
+  OOD_data: "data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"   # ← 50k câu truyện ma
+  min_length: 50
+
+# --- Audio Preprocessing ---
+preprocess_params:
+  sr: 24000
+  spect_params:
+    n_fft: 2048
+    win_length: 1200
+    hop_length: 300
+
+# --- Model Architecture ---
+model_params:
+  multispeaker: false
+
+  dim_in: 64
+  hidden_dim: 512
+  max_conv_dim: 512
+  n_layer: 3
+  n_mels: 80
+
+  n_token: 178                         # ← PLACEHOLDER: auto-inject by train_wrapper.py
+  max_dur: 50
+  style_dim: 128
+
+  dropout: 0.2
+
+  # Decoder (giữ nguyên iSTFTNet từ Stage 1)
+  decoder:
+    type: 'istftnet'
+    resblock_kernel_sizes: [3, 7, 11]
+    upsample_rates: [10, 6]
+    upsample_initial_channel: 512
+    resblock_dilation_sizes: [[1, 3, 5], [1, 3, 5], [1, 3, 5]]
+    upsample_kernel_sizes: [20, 12]
+    gen_istft_n_fft: 20
+    gen_istft_hop_size: 5
+
+  # SLM (WavLM) — *** ACTIVE: Đánh giá "giống người" ***
+  slm:
+    model: 'microsoft/wavlm-base-plus'
+    sr: 16000
+    hidden: 768
+    nlayers: 13
+    initial_channel: 64
+
+  # Style Diffusion — *** ACTIVE ***
+  diffusion:
+    embedding_mask_proba: 0.1
+    transformer:
+      num_layers: 3
+      num_heads: 8
+      head_features: 64
+      multiplier: 2
+    dist:
+      sigma_data: 0.2
+      estimate_sigma_data: true
+      mean: -3.0
+      std: 1.0
+
+# --- Loss Weights ---
+loss_params:
+  lambda_mel: 5.0
+  lambda_gen: 1.0
+  lambda_slm: 1.0
+
+  # TMA
+  lambda_mono: 1.0
+  lambda_s2s: 1.0
+  TMA_epoch: 0                # TMA bật ngay từ đầu (đã học ở Stage 1)
+
+  # Expressive losses — tất cả ACTIVE
+  lambda_F0: 1.0
+  lambda_norm: 1.0
+  lambda_dur: 1.0
+  lambda_ce: 20.0
+  lambda_sty: 1.0
+  lambda_diff: 1.0
+
+  # *** CHIẾN LƯỢC BẬT JAT NGAY ***
+  diff_epoch: 0               # Style diffusion: BẬT từ epoch 0
+  joint_epoch: 0              # Joint training:  BẬT từ epoch 0
+
+# --- Optimizer ---
+optimizer_params:
+  lr: 0.0001                  # LR chính (giữ 1e-4, tiếp nối từ Stage 1)
+  bert_lr: 0.00001            # LR cho PL-BERT (thấp, bảo vệ pre-trained)
+  ft_lr: 0.00001              # LR cho fine-tune modules
+
+# --- SLM Adversarial — *** ACTIVE *** ---
+slmadv_params:
+  min_len: 400
+  max_len: 500
+  batch_percentage: 0.5       # Chỉ dùng 50% batch cho SLM (tránh OOM)
+  iter: 10                    # Update discriminator mỗi 10 generator updates
+  thresh: 5
+  scale: 0.01
+  sig: 1.5
