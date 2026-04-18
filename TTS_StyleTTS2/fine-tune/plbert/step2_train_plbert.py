@@ -43,6 +43,12 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from dotenv import load_dotenv
 
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+
 # KHẮC PHỤC LỖI ENCODING TRÊN WINDOWS
 if sys.platform == "win32":
     try:
@@ -105,6 +111,14 @@ class PLBERTConfig:
     # --- Val ---
     val_ratio: float = 0.02         # 2% corpus dùng làm validation
 
+    # --- Weights & Biases ---
+    wandb_enabled: bool = True          # Bật/tắt wandb logging
+    wandb_project: str = "plbert-vietnamese"  # Tên project trên wandb
+    wandb_run_name: Optional[str] = None     # Tên phiên chạy (None = wandb tự sinh)
+    wandb_entity: Optional[str] = None       # Team/username trên wandb (None = mặc định)
+    wandb_tags: Optional[str] = None         # Tags phân loại, cách nhau bằng dấu phẩy
+    wandb_notes: str = ""                    # Ghi chú cho phiên chạy
+
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "PLBERTConfig":
         """Load config từ file YAML."""
@@ -146,6 +160,16 @@ class PLBERTConfig:
         # Logging
         config.log_interval = plbert.get("log_interval", config.log_interval)
         config.save_freq = plbert.get("save_freq", config.save_freq)
+
+        # Wandb
+        wb = full_config.get("wandb", plbert.get("wandb", {}))
+        if isinstance(wb, dict):
+            config.wandb_enabled = wb.get("enabled", config.wandb_enabled)
+            config.wandb_project = wb.get("project", config.wandb_project)
+            config.wandb_run_name = wb.get("run_name", config.wandb_run_name)
+            config.wandb_entity = wb.get("entity", config.wandb_entity)
+            config.wandb_tags = wb.get("tags", config.wandb_tags)
+            config.wandb_notes = wb.get("notes", config.wandb_notes)
 
         return config
 
@@ -561,6 +585,56 @@ def train_plbert(config: PLBERTConfig, logger: logging.Logger):
     with open(config_save_path, "w") as f:
         json.dump(model_config, f, indent=2)
 
+    # --- Wandb Init ---
+    use_wandb = config.wandb_enabled and WANDB_AVAILABLE
+    if config.wandb_enabled and not WANDB_AVAILABLE:
+        logger.warning("wandb chưa được cài đặt! Chạy: pip install wandb")
+        logger.warning("Tiếp tục training KHÔNG có wandb logging.")
+
+    if use_wandb:
+        # Parse tags từ chuỗi "tag1,tag2" thành list
+        tags = None
+        if config.wandb_tags:
+            tags = [t.strip() for t in config.wandb_tags.split(",") if t.strip()]
+
+        wandb.init(
+            project=config.wandb_project,
+            name=config.wandb_run_name,
+            entity=config.wandb_entity,
+            tags=tags,
+            notes=config.wandb_notes or None,
+            config={
+                # Model
+                "vocab_size": vocab_size,
+                "hidden_size": config.hidden_size,
+                "num_attention_heads": config.num_attention_heads,
+                "num_hidden_layers": config.num_hidden_layers,
+                "intermediate_size": config.intermediate_size,
+                "max_position_embeddings": config.max_position_embeddings,
+                "total_params": total_params,
+                # Training
+                "epochs": config.epochs,
+                "batch_size": config.batch_size,
+                "max_seq_length": config.max_seq_length,
+                "learning_rate": config.learning_rate,
+                "weight_decay": config.weight_decay,
+                "max_grad_norm": config.max_grad_norm,
+                "warmup_steps": config.warmup_steps,
+                "mlm_probability": config.mlm_probability,
+                "total_steps": total_steps,
+                "fp16": config.fp16,
+                # Data
+                "corpus_size": len(full_dataset),
+                "train_size": train_size,
+                "val_size": val_size,
+            },
+        )
+
+        # Theo dõi gradient & weight distributions (log mỗi 500 steps)
+        wandb.watch(model, log="all", log_freq=500)
+        logger.info(f"Wandb initialized: project='{config.wandb_project}', "
+                     f"run='{wandb.run.name}', url={wandb.run.get_url()}")
+
     # TRAINING LOOP
     logger.info("")
     logger.info("=" * 60)
@@ -618,6 +692,15 @@ def train_plbert(config: PLBERTConfig, logger: logging.Logger):
                     f"Speed: {steps_per_sec:.1f} steps/s"
                 )
 
+                if use_wandb:
+                    wandb.log({
+                        "train/loss": loss.item(),
+                        "train/loss_avg": avg_loss,
+                        "train/learning_rate": lr,
+                        "train/speed_steps_per_sec": steps_per_sec,
+                        "train/epoch": epoch,
+                    }, step=global_step)
+
         # --- End of epoch ---
         avg_train_loss = epoch_loss / max(epoch_steps, 1)
         epoch_elapsed = time.time() - epoch_start
@@ -631,6 +714,15 @@ def train_plbert(config: PLBERTConfig, logger: logging.Logger):
             f"Val Loss: {val_loss:.4f} | "
             f"Time: {epoch_elapsed:.0f}s"
         )
+
+        if use_wandb:
+            wandb.log({
+                "epoch/train_loss": avg_train_loss,
+                "epoch/val_loss": val_loss,
+                "epoch/best_val_loss": min(best_val_loss, val_loss),
+                "epoch/duration_s": epoch_elapsed,
+                "epoch/epoch": epoch,
+            }, step=global_step)
 
         # --- Save checkpoint ---
         if epoch % config.save_freq == 0 or epoch == config.epochs:
@@ -666,6 +758,14 @@ def train_plbert(config: PLBERTConfig, logger: logging.Logger):
     logger.info(f"    PLBERT_dir: '{output_dir}'")
     logger.info("    (Trỏ vào config YAML của StyleTTS2)")
     logger.info("=" * 60)
+
+    # --- Wandb Finish ---
+    if use_wandb:
+        wandb.summary["best_val_loss"] = best_val_loss
+        wandb.summary["total_steps"] = global_step
+        wandb.summary["total_time_h"] = total_elapsed / 3600
+        wandb.finish()
+        logger.info("Wandb run finished.")
 
 # EVALUATION
 @torch.no_grad()
@@ -790,6 +890,8 @@ def main():
     logger.info(f"MLM probability : {config.mlm_probability}")
     logger.info(f"Max seq length  : {config.max_seq_length}")
     logger.info(f"FP16            : {config.fp16}")
+    logger.info(f"Wandb           : {config.wandb_enabled} "
+                f"(project='{config.wandb_project}', run='{config.wandb_run_name or 'auto'}')")
 
     # Train
     try:

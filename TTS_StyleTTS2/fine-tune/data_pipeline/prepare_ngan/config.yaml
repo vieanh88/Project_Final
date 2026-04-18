@@ -1,0 +1,38 @@
+#  config.yaml — Cấu hình pipeline xử lý dataset giọng ngan
+#  Đường dẫn được map từ cấu trúc thư mục thực tế trong project
+paths:
+  # work_dir = nơi chứa file phoneme INPUT (filelist_*_phoneme.txt)
+  # → Các file này nằm thẳng trong output_dataset/
+  work_dir: "D:/HUST_Project/Project_Final/data/StyleTTS2_preprocess/output_dataset"
+
+  # output_dir = nơi lưu kết quả (ngan_train_list.txt, ngan_val_list.txt)
+  # → Đã có sẵn thư mục output/ trong prepare_ngan/
+  output_dir: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_ngan/output"
+
+  # vocab_file = phoneme_vocab.json từ pipeline prepare_vivoice
+  # → Nằm trong prepare_vivoice/output/
+  vocab_file: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/phoneme_vocab.json"
+
+prepare_ngan:
+  # dataset_dir = thư mục chứa file .wav để verify tồn tại
+  # → output_dataset/wavs/
+  dataset_dir: "D:/HUST_Project/Project_Final/data/StyleTTS2_preprocess/"
+
+  # Tên chính xác của 2 file phoneme nằm trong work_dir ở trên
+  # File nào có chữ "val" → tự nhận diện là val set
+  phoneme_files:
+    - "filelist_train_phoneme.txt"
+    - "filelist_val_phoneme.txt"
+
+  # Speaker ID: 0 = Bác Ngạn
+  speaker_id: 0
+
+  # Bật verify để đảm bảo wav tồn tại trước khi đưa vào filelist
+  verify_wav_exists: true
+
+  # Chỉ dùng khi phoneme_files chỉ có 1 file (không có val riêng)
+  train_ratio: 1.0
+  random_seed: 42
+
+  # vocab_file ở đây để ghi đè (override) nếu cần, thường để trống và dùng paths.vocab_file
+  vocab_file: ""

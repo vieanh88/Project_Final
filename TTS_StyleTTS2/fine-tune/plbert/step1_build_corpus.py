@@ -97,8 +97,11 @@ class CorpusConfig:
             output_dir=paths.get("output_dir", plbert.get("output_dir", cls.output_dir)),
             corpus_file=plbert.get("corpus_file", cls.corpus_file),
             stats_file=plbert.get("stats_file", cls.stats_file),
-            filelist_sources=plbert.get("filelist_sources", cls.filelist_sources),
-            ood_sources=plbert.get("ood_sources", cls.ood_sources),
+            # cls.filelist_sources / cls.ood_sources không tồn tại như class
+            # attribute khi dùng field(default_factory=list) — chỉ có trên instance.
+            # Dùng [] trực tiếp thay vì cls.xxx để tránh AttributeError.
+            filelist_sources=plbert.get("filelist_sources", []),
+            ood_sources=plbert.get("ood_sources", []),
             deduplicate=plbert.get("deduplicate", cls.deduplicate),
             shuffle=plbert.get("shuffle", cls.shuffle),
             random_seed=plbert.get("random_seed", cls.random_seed),

@@ -1,12 +1,8 @@
-# =============================================================================
 #  config.yaml — Cấu hình pipeline 5 bước xử lý dataset ViVoice
 #  Mục tiêu: Chuẩn bị dataset nền (Base Dataset) cho StyleTTS2 tiếng Việt
 #  Tất cả 5 script trong folder prepare_vivoice/ đều đọc từ file này.
-# =============================================================================
 
-# ─────────────────────────────────────────────────────────────────────────────
 #  ĐƯỜNG DẪN DỰ ÁN
-# ─────────────────────────────────────────────────────────────────────────────
 paths:
   # Thư mục gốc dự án (tất cả đường dẫn tương đối sẽ dựa trên thư mục này)
   project_root: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"
@@ -42,7 +38,7 @@ step1_download:
   cache_subdir: "hf_cache"
 
   # Số luồng tải song song (tăng nếu mạng nhanh)
-  num_proc: 6
+  num_proc: 4
 
   # Bỏ qua bước tải nếu cache đã tồn tại
   skip_existing: true

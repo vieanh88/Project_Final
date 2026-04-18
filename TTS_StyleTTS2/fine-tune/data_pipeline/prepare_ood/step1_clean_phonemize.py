@@ -32,9 +32,7 @@ from typing import Optional
 
 import yaml
 
-# =============================================================================
 # KHẮC PHỤC LỖI ENCODING TRÊN WINDOWS
-# =============================================================================
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -44,9 +42,7 @@ if sys.platform == "win32":
     os.environ["PYTHONIOENCODING"] = "utf-8"
     os.environ["PYTHONUTF8"] = "1"
 
-# =============================================================================
 # KHẮC PHỤC LỖI "WinError 193" — Bypass Linux Binary trong vinorm
-# =============================================================================
 import vinorm
 
 def _mock_tts_norm(text, *args, **kwargs):
@@ -60,11 +56,7 @@ viphoneme.TTSnorm = _mock_tts_norm
 
 from viphoneme import vi2IPA_split
 
-
-# =============================================================================
 # CONFIGURATION
-# =============================================================================
-
 # Bảng chuyển số → chữ tiếng Việt
 DIGIT_TO_WORD = {
     "0": "không", "1": "một", "2": "hai", "3": "ba", "4": "bốn",
@@ -95,7 +87,7 @@ class OODConfig:
 
     # Độ dài câu cho phép (theo từ, SAU khi clean)
     min_words: int = 3       # Bỏ câu quá ngắn
-    max_words: int = 60      # Bỏ câu quá dài (tránh OOM khi train)
+    max_words: int = 50      # Bỏ câu quá dài (tránh OOM khi train)
 
     # --- Tùy chọn Split ---
     # Tách đoạn văn dài thành nhiều câu ngắn (theo dấu . ? !)
@@ -438,13 +430,8 @@ def process_ood_texts(config: OODConfig, logger: logging.Logger):
     logger.info("    → plbert/step1_build_corpus.py  (Gộp corpus cho PL-BERT)")
     logger.info("    → Hoặc rebuild vocab nếu cần:")
     logger.info(f"      python step4_build_vocab.py --extra-phoneme-files {output_path}")
-    logger.info("=" * 60)
 
-
-# =============================================================================
 # MAIN
-# =============================================================================
-
 def main():
     parser = argparse.ArgumentParser(
         description="Prepare OOD — Clean & Phonemize 50k câu truyện ma cho JAT"

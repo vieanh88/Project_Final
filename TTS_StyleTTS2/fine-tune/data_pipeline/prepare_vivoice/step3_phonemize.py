@@ -299,13 +299,8 @@ def phonemize_texts(config: PhonemizeConfig, logger: logging.Logger):
 
     logger.info("")
     logger.info(f"  Output file : {output_path}")
-    logger.info("=" * 60)
 
-
-# =============================================================================
 # MAIN
-# =============================================================================
-
 def main():
     parser = argparse.ArgumentParser(
         description="Bước 3: Chuyển đổi text thô tiếng Việt → chuỗi phoneme IPA"
@@ -341,9 +336,7 @@ def main():
     logger = setup_logging(log_dir)
 
     # --- Header ---
-    logger.info("=" * 60)
     logger.info("  BƯỚC 3: CHUYỂN ĐỔI TEXT → PHONEME IPA (G2P)")
-    logger.info("=" * 60)
     logger.info(f"Config         : {config_path.resolve()}")
     logger.info(f"Input file     : {Path(config.work_dir) / config.raw_text_file}")
     logger.info(f"Output file    : {Path(config.work_dir) / config.phoneme_text_file}")
@@ -355,7 +348,6 @@ def main():
         phonemize_texts(config, logger)
         logger.info("")
         logger.info("Bước tiếp theo: Chạy step4_build_vocab.py để xây dựng từ điển phoneme")
-        logger.info("=" * 60)
     except Exception as e:
         logger.exception(f"THẤT BẠI: {e}")
         sys.exit(1)

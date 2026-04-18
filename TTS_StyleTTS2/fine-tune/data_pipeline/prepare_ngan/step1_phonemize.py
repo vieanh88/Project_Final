@@ -61,18 +61,14 @@ viphoneme.TTSnorm = _mock_tts_norm
 from viphoneme import vi2IPA_split
 
 # CONFIGURATION
-# Bảng chuyển số → chữ tiếng Việt (0-9)
+# Bảng chuyển số → chữ tiếng Việt (dùng nếu convert_numbers_to_words = True)
 DIGIT_TO_WORD = {
-    "0": "không",
-    "1": "một",
-    "2": "hai",
-    "3": "ba",
-    "4": "bốn",
-    "5": "năm",
-    "6": "sáu",
-    "7": "bảy",
-    "8": "tám",
-    "9": "chín",
+    "0": "không", "1": "một", "2": "hai", "3": "ba", "4": "bốn", "5": "năm",
+    "6": "sáu", "7": "bảy", "8": "tám", "9": "chín", "10": "mười",
+    "11": "mười một", "12": "mười hai", "13": "mười ba", "14": "mười bốn", "15": "mười năm",
+    "16": "mười sáu", "17": "mười bảy", "18": "mười tám", "19": "mười chín", "20": "hai mươi",
+    "30": "ba mươi", "40": "bốn mươi", "50": "năm mươi", "60": "sáu mươi", "70": "bảy mươi", "80": "tám mươi", "90": "chín mươi",
+    "100": "một trăm", "1000": "một nghìn", "1000000": "một triệu"
 }
 
 @dataclass

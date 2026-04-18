@@ -28,8 +28,8 @@ import time
 import logging
 import argparse
 from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, List
 
 import yaml
 
@@ -62,7 +62,11 @@ class NganFilelistConfig:
     ngan_dataset_dir: str = ""
 
     # File phoneme input (từ step1, nằm trong work_dir)
-    phoneme_files: list = None
+    # [FIX] Dùng field(default_factory=...) thay vì None để dataclass hoạt động đúng
+    phoneme_files: List[str] = field(default_factory=lambda: [
+        "ngan_train_phoneme.txt",
+        "ngan_val_phoneme.txt",
+    ])
 
     # File output
     train_list: str = "ngan_train_list.txt"
@@ -84,13 +88,6 @@ class NganFilelistConfig:
     train_ratio: float = 0.95
     random_seed: int = 42
 
-    def __post_init__(self):
-        if self.phoneme_files is None:
-            self.phoneme_files = [
-                "ngan_train_phoneme.txt",
-                "ngan_val_phoneme.txt",
-            ]
-
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "NganFilelistConfig":
         """Load config từ file YAML."""
@@ -100,17 +97,25 @@ class NganFilelistConfig:
         paths = full_config.get("paths", {})
         ngan = full_config.get("prepare_ngan", {})
 
+        # [FIX] Load phoneme_files từ YAML nếu có khai báo, 
+        #       ngược lại dùng giá trị mặc định của class
+        default_phoneme_files = [
+            "ngan_train_phoneme.txt",
+            "ngan_val_phoneme.txt",
+        ]
+        phoneme_files = ngan.get("phoneme_files", default_phoneme_files)
+    
         return cls(
-            work_dir=paths.get("work_dir", ngan.get("work_dir", cls.work_dir)),
-            output_dir=paths.get("output_dir", ngan.get("output_dir", cls.output_dir)),
-            ngan_dataset_dir=ngan.get("dataset_dir", cls.ngan_dataset_dir),
-            speaker_id=ngan.get("speaker_id", cls.speaker_id),
-            vocab_file=ngan.get("vocab_file", paths.get("vocab_file", cls.vocab_file)),
-            verify_wav_exists=ngan.get("verify_wav_exists", cls.verify_wav_exists),
-            train_ratio=ngan.get("train_ratio", cls.train_ratio),
-            random_seed=ngan.get("random_seed", cls.random_seed),
+            work_dir=paths.get("work_dir", ngan.get("work_dir", cls.work_dir)),         # ưu tiên paths.work_dir > prepare_ngan.work_dir > default
+            output_dir=paths.get("output_dir", ngan.get("output_dir", cls.output_dir)), # ưu tiên paths.output_dir > prepare_ngan.output_dir > default
+            ngan_dataset_dir=ngan.get("dataset_dir", cls.ngan_dataset_dir),             # chỉ có trong prepare_ngan
+            phoneme_files=phoneme_files,  # [FIX] Thêm dòng này
+            speaker_id=ngan.get("speaker_id", cls.speaker_id),                          # chỉ có trong prepare_ngan
+            vocab_file=ngan.get("vocab_file", paths.get("vocab_file", cls.vocab_file)), # ưu tiên prepare_ngan.vocab_file > paths.vocab_file > default
+            verify_wav_exists=ngan.get("verify_wav_exists", cls.verify_wav_exists),     # chỉ có trong prepare_ngan
+            train_ratio=ngan.get("train_ratio", cls.train_ratio),                       # chỉ có trong prepare_ngan
+            random_seed=ngan.get("random_seed", cls.random_seed),                       # chỉ có trong prepare_ngan
         )
-
 
 # =============================================================================
 # LOGGING SETUP
@@ -389,11 +394,7 @@ def make_ngan_filelist(config: NganFilelistConfig, logger: logging.Logger):
     logger.info("    → prepare_ood/step1_clean_phonemize.py  (Clean + phonemize OOD text)")
     logger.info("=" * 60)
 
-
-# =============================================================================
 # MAIN
-# =============================================================================
-
 def main():
     parser = argparse.ArgumentParser(
         description="Prepare Ngạn — Bước 2: Tạo filelist train/val với speaker_id"
@@ -444,6 +445,7 @@ def main():
     logger.info(f"Verify wav     : {config.verify_wav_exists}")
     logger.info(f"Vocab file     : {config.vocab_file or '(không dùng)'}")
     logger.info(f"Output dir     : {config.output_dir}")
+    logger.info(f"Phoneme files  : {config.phoneme_files}")
 
     # --- Chạy ---
     try:

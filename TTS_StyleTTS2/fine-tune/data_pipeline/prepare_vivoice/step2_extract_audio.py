@@ -16,6 +16,7 @@ Chạy lệnh:
 =============================================================================
 """
 
+import io
 import os
 import sys
 import time
@@ -24,6 +25,16 @@ import argparse
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
+
+# [FIX] Tắt torchcodec TRƯỚC KHI import bất kỳ thứ gì từ datasets.
+#   - datasets >= 2.x tự động dùng torchcodec làm audio backend nếu có cài.
+#   - torchcodec yêu cầu FFmpeg "full-shared" DLL khớp đúng ABI version.
+#   - Cài FFmpeg thông thường (kể cả full_build) vẫn có thể lệch ABI minor
+#     version → WinError 127 "procedure not found".
+#   Giải pháp triệt để: load dataset với decode=False, tự decode bằng
+#   soundfile (không cần FFmpeg / torchcodec).
+os.environ["DATASETS_AUDIO_DECODE_WITH_TORCHCODEC"] = "0"   # datasets ≥ 2.21
+os.environ["HF_DATASETS_AUDIO_DECODE_WITH_TORCHCODEC"] = "0"  # alias an toàn
 
 import yaml
 import numpy as np
@@ -40,11 +51,11 @@ if sys.platform == "win32":
     os.environ["PYTHONIOENCODING"] = "utf-8"
     os.environ["PYTHONUTF8"] = "1"
 
-    # ÉP PYTHON NHẬN FFMPEG
+    # os.add_dll_directory giữ lại phòng trường hợp thư viện khác cần FFmpeg,
+    # nhưng pipeline audio này không phụ thuộc vào nó nữa.
     try:
-        # Thay C:\ffmpeg\bin bằng đúng đường dẫn bạn đã giải nén FFmpeg
         os.add_dll_directory(r"D:\FFmpeg\ffmpeg-7.0.2-full_build-shared\bin")
-    except AttributeError:
+    except (AttributeError, OSError):
         pass
 
 # CONFIGURATION
@@ -172,6 +183,60 @@ def save_wav(audio_array: np.ndarray, path: Path, sr: int, bit_depth: int = 16):
     subtype = subtype_map.get(bit_depth, "PCM_16")
     sf.write(str(path), audio_array, sr, subtype=subtype)
 
+# [FIX] Hàm decode audio thủ công — không dùng torchcodec / FFmpeg
+def decode_audio_from_sample(audio_info: dict, target_sr: int) -> tuple:
+    """
+    Giải mã audio từ dict trả về bởi datasets (decode=False).
+
+    datasets trả về dict với một trong các dạng:
+      1. {"array": np.ndarray, "sampling_rate": int}   ← đã decode sẵn (hiếm)
+      2. {"bytes": bytes, "path": str|None}             ← raw bytes (phổ biến)
+      3. {"bytes": None,  "path": str}                  ← path tới file local
+
+    Trả về: (audio_array: np.ndarray, orig_sr: int)
+    Raise : ValueError nếu không decode được.
+    """
+    # --- Trường hợp 1: đã decode sẵn ---
+    if audio_info.get("array") is not None:
+        return np.array(audio_info["array"], dtype=np.float32), int(audio_info.get("sampling_rate", target_sr))
+
+    # --- Trường hợp 2: raw bytes ---
+    raw_bytes = audio_info.get("bytes")
+    if raw_bytes is not None:
+        try:
+            audio_array, orig_sr = sf.read(io.BytesIO(raw_bytes), dtype="float32", always_2d=False)
+            return audio_array, orig_sr
+        except Exception as e_sf:
+            # Fallback: librosa (hỗ trợ thêm MP3 qua audioread nếu cài)
+            try:
+                import librosa
+                audio_array, orig_sr = librosa.load(io.BytesIO(raw_bytes), sr=None, mono=False)
+                return audio_array.astype(np.float32), orig_sr
+            except Exception as e_lib:
+                raise ValueError(
+                    f"soundfile lỗi: {e_sf} | librosa lỗi: {e_lib}"
+                ) from e_lib
+
+    # --- Trường hợp 3: path tới file local ---
+    file_path = audio_info.get("path")
+    if file_path and os.path.isfile(file_path):
+        try:
+            audio_array, orig_sr = sf.read(file_path, dtype="float32", always_2d=False)
+            return audio_array, orig_sr
+        except Exception as e_sf:
+            try:
+                import librosa
+                audio_array, orig_sr = librosa.load(file_path, sr=None, mono=False)
+                return audio_array.astype(np.float32), orig_sr
+            except Exception as e_lib:
+                raise ValueError(
+                    f"soundfile lỗi: {e_sf} | librosa lỗi: {e_lib}"
+                ) from e_lib
+
+    raise ValueError(
+        f"audio_info không có 'array', 'bytes', hay 'path' hợp lệ. Keys: {list(audio_info.keys())}"
+    )
+
 # CORE LOGIC
 def process_single_sample(
     sample: dict,
@@ -213,25 +278,18 @@ def process_single_sample(
             result["success"] = True
             return result
 
-        # --- Giải mã audio ---
+        # --- Lấy audio info ---
         audio_info = sample.get("audio", None)
         if audio_info is None:
             result["error"] = "Không có cột audio"
             return result
 
-        if isinstance(audio_info, dict):
-            audio_array = audio_info.get("array", None)
-            orig_sr = audio_info.get("sampling_rate", target_sr)
-        else:
+        if not isinstance(audio_info, dict):
             result["error"] = f"Format audio không hỗ trợ: {type(audio_info)}"
             return result
 
-        if audio_array is None:
-            result["error"] = "Audio array = None"
-            return result
-
-        # --- Chuyển sang float32 ---
-        audio_array = np.array(audio_array, dtype=np.float32)
+        # --- [FIX] Decode audio thủ công, không qua torchcodec ---
+        audio_array, orig_sr = decode_audio_from_sample(audio_info, target_sr)
 
         # --- Chuyển về mono ---
         audio_array = to_mono(audio_array)
@@ -266,7 +324,7 @@ def extract_dataset(config: ExtractConfig, logger: logging.Logger):
     Quy trình chính: Load dataset từ cache → xử lý từng sample → lưu .wav + text.
     """
     # --- Lazy import ---
-    from datasets import load_dataset
+    from datasets import load_dataset, Audio
     from tqdm import tqdm
 
     # --- Chuẩn bị thư mục ---
@@ -285,7 +343,7 @@ def extract_dataset(config: ExtractConfig, logger: logging.Logger):
 
     load_kwargs = {
         "path": config.dataset_name,
-        "cache_dir": str(cache_dir)
+        "cache_dir": str(cache_dir),
     }
 
     if config.dataset_config:
@@ -299,13 +357,25 @@ def extract_dataset(config: ExtractConfig, logger: logging.Logger):
 
     dataset = load_dataset(**load_kwargs)
 
+    # --- [FIX] Tắt auto-decode audio để datasets không gọi torchcodec ---
+    # Audio(decode=False) → datasets trả về raw bytes thay vì decoded array.
+    # process_single_sample sẽ tự decode bằng soundfile.
+    def _disable_audio_decode(ds):
+        if "audio" in ds.features:
+            return ds.cast_column("audio", Audio(decode=False))
+        return ds
+
     # --- Xác định splits cần xử lý ---
     if hasattr(dataset, "keys"):
         splits = list(dataset.keys())
         logger.info(f"  Splits     : {splits}")
+        for split_name in splits:
+            dataset[split_name] = _disable_audio_decode(dataset[split_name])
     else:
         splits = ["train"]
-        dataset = {"train": dataset}
+        dataset = {"train": _disable_audio_decode(dataset)}
+
+    logger.info("  Audio decode: soundfile (torchcodec bypassed)")
 
     # --- Xử lý từng split ---
     global_index = 0
@@ -345,10 +415,8 @@ def extract_dataset(config: ExtractConfig, logger: logging.Logger):
                 all_texts.append(result["text"])
                 all_wav_paths.append(result["wav_path"])
 
-                # Kiểm tra skip
                 wav_path = Path(result["wav_path"])
                 if config.skip_existing and wav_path.exists():
-                    # File đã tồn tại từ trước → đếm riêng
                     pass
             else:
                 stats["errors"] += 1
@@ -371,7 +439,6 @@ def extract_dataset(config: ExtractConfig, logger: logging.Logger):
 
     with open(raw_text_path, "w", encoding="utf-8") as f:
         for text in all_texts:
-            # Loại bỏ newline trong text (1 dòng = 1 câu)
             clean_text = text.replace("\n", " ").replace("\r", "").strip()
             f.write(clean_text + "\n")
 
@@ -435,7 +502,6 @@ def main():
     # --- Load .env ---
     env_path = Path(args.config).parent.parent / ".env"
     if not env_path.exists():
-        # Thử tìm ở project root
         env_path = Path(args.config).parent.parent.parent.parent / ".env"
     if env_path.exists():
         load_dotenv(str(env_path))

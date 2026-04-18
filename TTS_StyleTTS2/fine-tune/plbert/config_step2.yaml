@@ -1,0 +1,119 @@
+# =============================================================================
+#  config_step2.yaml — Cấu hình cho BƯỚC 2: Train PL-BERT tiếng Việt
+# =============================================================================
+#  Corpus  : 934,271 dòng | 126.8M ký tự | 144 ký tự unique
+#  Phần cứng: 24GB VRAM (RTX 3090 / 4090)
+#
+#  Chạy lệnh:
+#    python step2_train_plbert.py --config config_step2.yaml
+# =============================================================================
+
+paths:
+  work_dir: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert/workdir"
+
+plbert_train:
+  # ─────────────────────────────────────────────────────────
+  #  ĐƯỜNG DẪN
+  # ─────────────────────────────────────────────────────────
+  # Corpus phoneme (output từ step1)
+  corpus_file: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert/output/all_corpus_phoneme.txt"
+
+  # Phoneme vocab (output từ prepare_vivoice/step4)
+  vocab_file: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/phoneme_vocab.json"
+
+  # Thư mục lưu checkpoints
+  output_dir: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert/checkpoints"
+
+  # ─────────────────────────────────────────────────────────
+  #  KIẾN TRÚC MODEL
+  # ─────────────────────────────────────────────────────────
+  # Giữ nguyên chuẩn BERT-base để tương thích với StyleTTS2
+  # StyleTTS2 gốc kỳ vọng PL-BERT có hidden_size = 768
+  hidden_size: 768              # Embedding & hidden dimension
+  num_attention_heads: 12       # Multi-head attention
+  num_hidden_layers: 12         # Transformer layers
+  intermediate_size: 2048       # FFN inner dimension
+  max_position_embeddings: 512  # Max sequence length (phải >= max_seq_length)
+  hidden_dropout_prob: 0.1
+  attention_probs_dropout_prob: 0.1
+
+  # ─────────────────────────────────────────────────────────
+  #  TRAINING HYPERPARAMETERS
+  # ─────────────────────────────────────────────────────────
+  # Corpus ~934k dòng, batch=64 → ~14,597 steps/epoch
+  # 20 epochs → ~291,940 total steps (khoảng 8-12 tiếng trên 1 GPU)
+  epochs: 20
+  batch_size: 64                # 24GB VRAM: 64 thoải mái với seq_length=256
+                                # Nếu OOM: giảm xuống 32
+  max_seq_length: 256           # Trung bình corpus 135.7 chars → 256 là đủ
+                                # (sequences dài hơn sẽ bị truncate)
+
+  # Optimizer (AdamW)
+  learning_rate: 0.0001         # 1e-4 (chuẩn BERT pre-training)
+  weight_decay: 0.01            # L2 regularization
+  max_grad_norm: 1.0            # Gradient clipping
+
+  # Scheduler (Cosine với Linear Warmup)
+  warmup_steps: 2000            # ~0.7% total steps
+                                # Warmup 2000 steps ổn định hơn 1000
+                                # vì corpus lớn, cần thời gian hội tụ ban đầu
+
+  # Masked Language Modeling
+  mlm_probability: 0.15         # Chuẩn BERT: mask 15% tokens
+                                # 80% → [MASK], 10% → random, 10% → giữ nguyên
+
+  # ─────────────────────────────────────────────────────────
+  #  HARDWARE
+  # ─────────────────────────────────────────────────────────
+  device: "cuda"
+  num_workers: 4                # DataLoader workers (CPU cores)
+                                # Giảm xuống 2 nếu RAM < 16GB
+  fp16: true                    # Mixed precision: TIẾT KIỆM ~40% VRAM
+                                # Cho phép tăng batch_size hoặc model lớn hơn
+                                # Đặt false nếu gặp NaN loss
+
+  # ─────────────────────────────────────────────────────────
+  #  LOGGING & CHECKPOINT
+  # ─────────────────────────────────────────────────────────
+  log_interval: 200             # Log mỗi 200 steps (~78 logs/epoch)
+                                # Tăng lên 500 nếu log quá nhiều
+
+  save_freq: 2                  # Lưu checkpoint mỗi 2 epochs
+                                # → ~10 checkpoints qua 20 epochs
+
+  save_total_limit: 5           # Giữ tối đa 5 checkpoints gần nhất
+                                # + 1 file plbert_vi_best.t7 (luôn giữ)
+
+  # ─────────────────────────────────────────────────────────
+  #  VALIDATION
+  # ─────────────────────────────────────────────────────────
+  val_ratio: 0.02               # 2% corpus → ~18,685 samples làm validation
+                                # Đánh giá val_loss cuối mỗi epoch
+
+# =============================================================================
+#  WEIGHTS & BIASES — Theo dõi quá trình training trực quan
+# =============================================================================
+wandb:
+  # Bật/tắt wandb (đặt false nếu không muốn dùng)
+  enabled: true
+
+  # Tên PROJECT trên wandb — gom nhóm tất cả các phiên chạy liên quan
+  # Ví dụ: tất cả thí nghiệm PL-BERT sẽ nằm trong project này
+  # Xem tại: https://wandb.ai/<username>/story-ai-narrator
+  project: "story-ai-narrator"
+
+  # Tên PHIÊN CHẠY (run) — phân biệt giữa các lần chạy trong cùng project
+  # Để null → wandb tự sinh tên ngẫu nhiên (ví dụ: "dainty-sun-42")
+  # Đặt tên rõ ràng giúp dễ tìm lại sau này
+  run_name: "plbert-vi-base-ep20-bs64"
+
+  # Entity (team hoặc username trên wandb)
+  # Để null → dùng username mặc định của bạn
+  entity: null
+
+  # Tags — phân loại phiên chạy, cách nhau bằng dấu phẩy
+  # Giúp filter nhanh trên dashboard wandb
+  tags: "plbert,vietnamese,mlm,stage-c2"
+
+  # Ghi chú — mô tả ngắn về phiên chạy
+  notes: "Train PL-BERT tiếng Việt từ đầu trên 934k phoneme corpus. BERT-base 12L/768H. Cosine LR 1e-4."

@@ -1,10 +1,11 @@
-# Bỏ qua file log
-*.log
+# Bỏ qua repo StyleTTS2 gốc
+StyleTTS2/
 # Bỏ qua file data 
 data/raw_audio/
 data/StyleTTS2_preprocess/dnsmos_models/
 data/StyleTTS2_preprocess/output_dataset/
 data/StyleTTS2_preprocess/workdir/
+data/raw_ood_texts.txt
 # Bỏ qua file .env
 .env
 # Bỏ qua môi trường venv
@@ -17,7 +18,27 @@ data/StyleTTS2_preprocess/workdir/
 *.mp3
 *.m4a
 *.wav
-*.json
+*.txt
 # Bỏ qua file cache
 __pycache__/
 hf_cache/
+# Bỏ qua file checkpoint và output
+checkpoint/
+output/
+workdir/
+# Bỏ qua file logs
+logs/
+
+# Bỏ qua các thư mục chứa data/log sinh ra trong quá trình chạy
+TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/workdir/
+TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/
+TTS_StyleTTS2/fine-tune/plbert/output/
+TTS_StyleTTS2/fine-tune/plbert/workdir/
+data/StyleTTS2_preprocess/output_dataset/
+
+# Hoặc bỏ qua chặn file txt khổng lồ
+*phoneme.txt
+*train_list.txt
+*val_list.txt
+raw_texts.txt
+phoneme_texts.txt

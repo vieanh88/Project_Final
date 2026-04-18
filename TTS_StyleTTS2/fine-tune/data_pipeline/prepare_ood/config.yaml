@@ -1,0 +1,8 @@
+prepare_ood:
+  input_file: "D:/HUST_Project/Project_Final/data/raw_ood_texts.txt"
+  output_file: "OOD_texts_phoneme.txt"
+  convert_numbers_to_words: true
+  split_long_sentences: true
+  split_max_words: 25
+  min_words: 3
+  max_words: 50

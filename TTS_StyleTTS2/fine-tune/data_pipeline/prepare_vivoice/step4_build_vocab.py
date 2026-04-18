@@ -32,9 +32,7 @@ from collections import Counter
 
 import yaml
 
-# =============================================================================
 # KHẮC PHỤC LỖI ENCODING TRÊN WINDOWS
-# =============================================================================
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -44,11 +42,7 @@ if sys.platform == "win32":
     os.environ["PYTHONIOENCODING"] = "utf-8"
     os.environ["PYTHONUTF8"] = "1"
 
-
-# =============================================================================
 # CONFIGURATION
-# =============================================================================
-
 @dataclass
 class VocabConfig:
     """Cấu hình cho bước xây dựng từ điển phoneme."""
@@ -88,11 +82,7 @@ class VocabConfig:
             include_special_tokens=step4.get("include_special_tokens", cls.include_special_tokens),
         )
 
-
-# =============================================================================
 # LOGGING SETUP
-# =============================================================================
-
 def setup_logging(log_dir: Path) -> logging.Logger:
     """Thiết lập logging ghi ra console + file."""
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -113,11 +103,7 @@ def setup_logging(log_dir: Path) -> logging.Logger:
     )
     return logging.getLogger("step4_vocab")
 
-
-# =============================================================================
 # CORE LOGIC
-# =============================================================================
-
 def scan_characters(file_path: Path, logger: logging.Logger) -> Counter:
     """
     Quét file phoneme, đếm tần suất từng ký tự IPA.
@@ -143,7 +129,6 @@ def scan_characters(file_path: Path, logger: logging.Logger) -> Counter:
                 f"{len(char_counter):,} ký tự unique")
 
     return char_counter
-
 
 def build_vocab(config: VocabConfig, logger: logging.Logger):
     """
@@ -288,11 +273,7 @@ def build_vocab(config: VocabConfig, logger: logging.Logger):
     logger.info(f"  (Giá trị này sẽ được train_wrapper.py tự động inject vào config YAML)")
     logger.info("=" * 60)
 
-
-# =============================================================================
 # MAIN
-# =============================================================================
-
 def main():
     parser = argparse.ArgumentParser(
         description="Bước 4: Xây dựng từ điển phoneme (Phoneme Vocabulary)"
