@@ -1,5 +1,3 @@
-# Bỏ qua repo StyleTTS2 gốc
-StyleTTS2/
 # Bỏ qua file data 
 data/raw_audio/
 data/StyleTTS2_preprocess/dnsmos_models/

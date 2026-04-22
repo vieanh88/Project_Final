@@ -12,7 +12,7 @@
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseBase"
 first_stage_path: ""                    # Để trống (train từ đầu)
-save_freq: 20                           # Lưu checkpoint mỗi 20 epochs
+save_freq: 10                           # Lưu checkpoint mỗi 10 epochs
 log_interval: 20                        # Log mỗi 20 steps
 device: "cuda"
 
@@ -134,7 +134,7 @@ slmadv_params:
   min_len: 400
   max_len: 500
   batch_percentage: 0.5
-  iter: 10
+  iter: 10                # Số lần lặp adversarial mỗi epoch
   thresh: 5
   scale: 0.01
   sig: 1.5
