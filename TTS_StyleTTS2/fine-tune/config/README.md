@@ -20,7 +20,7 @@
 
 **3 điểm thiết kế cốt lõi:**
 
-Thứ nhất, `n_token: 178` trong cả 3 file là **placeholder**. `train_wrapper.py` (file tiếp theo) sẽ đọc `phoneme_vocab.json`, lấy giá trị `n_token` thực tế, và tự động inject vào trước khi gọi script gốc. Điều này chống lỗi `IndexError` 100%.
+Thứ nhất, `n_token: 150` trong cả 3 file là **placeholder**. `train_wrapper.py` (file tiếp theo) sẽ đọc `phoneme_vocab.json`, lấy giá trị `n_token` thực tế, và tự động inject vào trước khi gọi script gốc. Điều này chống lỗi `IndexError` 100%.
 
 Thứ hai, `pretrained_model: ""` ở Stage 2 và 3 cũng là placeholder. Wrapper sẽ quét thư mục log của giai đoạn trước, tìm checkpoint tốt nhất, và tự điền đường dẫn.
 

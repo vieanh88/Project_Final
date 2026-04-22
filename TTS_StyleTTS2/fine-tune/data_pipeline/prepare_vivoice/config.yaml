@@ -110,8 +110,19 @@ step5_filelist:
   # Speaker ID mặc định cho toàn bộ ViVoice
   # (ViVoice có cột "channel" nhưng ta gom chung 1 speaker group)
   # Nếu muốn multi-speaker, đặt: use_channel_as_speaker: true
-  default_speaker_id: 1
-  use_channel_as_speaker: false
+  #default_speaker_id: 1
+  use_channel_as_speaker: true
 
   # Format 1 dòng: wav_path|phoneme_text|speaker_id
   delimiter: "|"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  BƯỚC 6: REBUILD FILELIST — Tạo lại filelist sau khi đã có phoneme và vocab, mapping speaker_id bổ sung cho multispeker
+# ─────────────────────────────────────────────────────────────────────────────
+  step6_rebuild:
+  channel_column: "channel"
+  min_samples_per_speaker: 20
+  # Các tham số khác tự động thừa kế từ step5_filelist (train_ratio, seed, ...)
+  min_phoneme_length: 3
+  max_phoneme_length: 5000
+  verify_wav_exists: true

@@ -13,14 +13,14 @@
 
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseExpressive"
-save_freq: 5
-log_interval: 10
+save_freq: 10                           # Lưu checkpoint mỗi 10 epochs
+log_interval: 20                        # Log mỗi 20 steps
 device: "cuda"
 
 # --- Training Schedule ---
 epochs_1st: 0                           # Không dùng (đã qua Stage 1)
 epochs_2nd: 50                          # Số epochs cho Stage 2
-batch_size: 4                           # *** GIẢM MẠNH: JAT + WavLM rất tốn VRAM ***
+batch_size: 6                           # *** GIẢM MẠNH: JAT + WavLM rất tốn VRAM ***
                                         # Thử 6 nếu VRAM 24GB đủ, giảm 4 nếu OOM
 max_len: 400
 
@@ -34,12 +34,12 @@ load_only_params: false
 F0_path: "Utils/JDC/bst.t7"
 ASR_config: "Utils/ASR/config.yml"
 ASR_path: "Utils/ASR/epoch_00080.pth"
-PLBERT_dir: "plbert_checkpoints/"       # ← PL-BERT tiếng Việt
+PLBERT_dir: "plbert/checkpoints/"       # ← PL-BERT tiếng Việt
 
 # --- Data ---
 data_params:
-  train_data: "data_pipeline/prepare_vicoice/output/vivoice_train_list.txt"
-  val_data: "data_pipeline/prepare_vicoice/output/vivoice_val_list.txt"
+  train_data: "data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
+  val_data: "data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
   root_path: ""
   OOD_data: "data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"   # ← 50k câu truyện ma
   min_length: 50
@@ -54,7 +54,7 @@ preprocess_params:
 
 # --- Model Architecture ---
 model_params:
-  multispeaker: false
+  multispeaker: true
 
   dim_in: 64
   hidden_dim: 512
@@ -62,7 +62,7 @@ model_params:
   n_layer: 3
   n_mels: 80
 
-  n_token: 178                         # ← PLACEHOLDER: auto-inject by train_wrapper.py
+  n_token: 150                          # ← PLACEHOLDER: auto-inject by train_wrapper.py
   max_dur: 50
   style_dim: 128
 

@@ -12,14 +12,14 @@
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseBase"
 first_stage_path: ""                    # Để trống (train từ đầu)
-save_freq: 5                            # Lưu checkpoint mỗi 5 epochs
-log_interval: 10                        # Log mỗi 10 steps
+save_freq: 20                           # Lưu checkpoint mỗi 20 epochs
+log_interval: 20                        # Log mỗi 20 steps
 device: "cuda"
 
 # --- Training Schedule ---
 epochs_1st: 100                         # Số epochs cho Stage 1
 epochs_2nd: 0                           # Không dùng (chỉ chạy 1st stage)
-batch_size: 16                          # VRAM 24GB: thử 16 trước, tăng 32 nếu đủ
+batch_size: 32                          # VRAM 24GB: thử 16 trước, tăng 32 nếu đủ
 max_len: 400                            # Max frames per sample
 
 # --- Checkpoint Loading ---
@@ -32,12 +32,12 @@ load_only_params: false
 F0_path: "Utils/JDC/bst.t7"
 ASR_config: "Utils/ASR/config.yml"
 ASR_path: "Utils/ASR/epoch_00080.pth"
-PLBERT_dir: "plbert_checkpoints/"       # ← PL-BERT tiếng Việt
+PLBERT_dir: "plbert/checkpoints/"       # ← PL-BERT tiếng Việt
 
 # --- Data ---
 data_params:
-  train_data: "data_pipeline/prepare_vicoice/output/vivoice_train_list.txt"
-  val_data: "data_pipeline/prepare_vicoice/output/vivoice_val_list.txt"
+  train_data: "data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
+  val_data: "data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
   root_path: ""                         # Để trống vì filelist đã chứa absolute path
   OOD_data: ""                          # Không dùng OOD ở Stage 1
   min_length: 50
@@ -52,7 +52,7 @@ preprocess_params:
 
 # --- Model Architecture ---
 model_params:
-  multispeaker: false                   # ViVoice gom chung 1 speaker group
+  multispeaker: true                  # ViVoice là multi-speaker, nên bật multispeaker = true
 
   dim_in: 64
   hidden_dim: 512
@@ -60,7 +60,7 @@ model_params:
   n_layer: 3
   n_mels: 80
 
-  n_token: 178                         # ← PLACEHOLDER: train_wrapper.py sẽ tự động
+  n_token: 150                          # ← PLACEHOLDER: train_wrapper.py sẽ tự động
                                         #    inject giá trị thực từ phoneme_vocab.json
   max_dur: 50
   style_dim: 128

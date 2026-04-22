@@ -10,6 +10,7 @@
 | A3 | `prepare_vivoice/step3_phonemize.py` | Text thô → phoneme (gọi logic từ `step08_phonemize.py` của bạn) |
 | A4 | `prepare_vivoice/step4_build_vocab.py` | Quét toàn bộ phoneme → `phoneme_vocab.json` + `n_token` |
 | A5 | `prepare_vivoice/step5_make_filelist.py` | Gộp wav + phoneme + speaker_id → train/val filelist |
+| M1 | `prepare_vivoice/step6_rebuild_multispeaker` | Mapping channel ↔ speaker_id + stats |
 
 **B. Data Preparation — Ngạn & OOD (3 scripts)**
 

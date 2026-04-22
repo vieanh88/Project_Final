@@ -19,6 +19,7 @@ data/raw_ood_texts.txt
 *.m4a
 *.wav
 *.txt
+*.log
 # Bỏ qua file cache
 __pycache__/
 hf_cache/
@@ -26,8 +27,10 @@ hf_cache/
 checkpoint/
 output/
 workdir/
-# Bỏ qua file logs
+# Bỏ qua file logs và checkpoint sinh ra trong quá trình chạy
 logs/
+checkpoints/
+wandb/
 
 # Bỏ qua các thư mục chứa data/log sinh ra trong quá trình chạy
 TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/workdir/

@@ -15,8 +15,8 @@
 
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/NganFinetune"
-save_freq: 5                            # Lưu mỗi 5 epochs
-log_interval: 10
+save_freq: 10                           # Lưu mỗi 10 epochs
+log_interval: 20                        # Log mỗi 20 steps  
 device: "cuda"
 
 # --- Training Schedule ---
@@ -24,7 +24,7 @@ device: "cuda"
 epochs: 50                              # Fine-tune tối đa 50 epochs
                                         # Kiểm tra chất lượng mỗi 5-10 epochs
                                         # Dừng sớm khi nghe đủ tốt
-batch_size: 6                           # Cân bằng VRAM: thử 6-8
+batch_size: 8                           # Cân bằng VRAM: thử 6-8
 max_len: 400
 
 # --- Checkpoint Loading ---
@@ -39,7 +39,7 @@ load_only_params: true                  # *** CHỈ LẤY WEIGHTS, LÀM MỚI OP
 F0_path: "Utils/JDC/bst.t7"
 ASR_config: "Utils/ASR/config.yml"
 ASR_path: "Utils/ASR/epoch_00080.pth"
-PLBERT_dir: "plbert_checkpoints/"       # ← PL-BERT tiếng Việt
+PLBERT_dir: "plbert/checkpoints/"       # ← PL-BERT tiếng Việt
 
 # --- Data ---
 # *** ĐỔI SANG DATASET BÁC NGẠN ***
@@ -69,15 +69,15 @@ model_params:
   n_layer: 3
   n_mels: 80
 
-  n_token: 178                         # ← PLACEHOLDER: auto-inject by train_wrapper.py
+  n_token: 150                          # ← PLACEHOLDER: auto-inject by train_wrapper.py
   max_dur: 50
   style_dim: 128
 
   dropout: 0.2
 
-  # Decoder (HiFi-GAN — config_ft.yml gốc dùng hifigan cho fine-tune)
+  # Decoder (HiFi-GAN — config_ft.yml gốc dùng hifigan cho fine-tune) -> Đổi sang ISTFTNet để khớp Stage 1,2
   decoder:
-    type: 'hifigan'
+    type: 'istftnet'
     resblock_kernel_sizes: [3, 7, 11]
     upsample_rates: [10, 5, 3, 2]
     upsample_initial_channel: 512

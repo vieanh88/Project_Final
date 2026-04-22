@@ -21,6 +21,8 @@ Chạy lệnh:
     python train_wrapper.py --stage 3
     python train_wrapper.py --stage 1 --dry-run   (chỉ kiểm tra, không chạy)
 
+    # Dùng checkpoint cụ thể thay vì auto-chain
+    python train_wrapper.py --stage 3 --pretrained-model "path/to/epoch_2nd_00040.pth"
 Yêu cầu: Phải chạy từ thư mục fine-tune/ (hoặc chỉ định --project-root)
 =============================================================================
 """
@@ -42,9 +44,7 @@ from typing import Optional, List
 import yaml
 from dotenv import load_dotenv
 
-# =============================================================================
 # KHẮC PHỤC LỖI ENCODING TRÊN WINDOWS
-# =============================================================================
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -54,11 +54,7 @@ if sys.platform == "win32":
     os.environ["PYTHONIOENCODING"] = "utf-8"
     os.environ["PYTHONUTF8"] = "1"
 
-
-# =============================================================================
 # CONFIGURATION
-# =============================================================================
-
 # Mapping stage → script gốc và config template
 STAGE_MAP = {
     1: {
@@ -80,7 +76,6 @@ STAGE_MAP = {
         "log_dir_key": "log_dir",
     },
 }
-
 
 @dataclass
 class WrapperConfig:
@@ -126,11 +121,7 @@ class WrapperConfig:
                                    paths.get("vocab_file", cls.vocab_file)),
         )
 
-
-# =============================================================================
 # LOGGING SETUP
-# =============================================================================
-
 def setup_logging(log_dir: Path) -> logging.Logger:
     """Thiết lập logging."""
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -151,11 +142,7 @@ def setup_logging(log_dir: Path) -> logging.Logger:
     )
     return logging.getLogger("train_wrapper")
 
-
-# =============================================================================
 # CORE: VOCAB INJECTION
-# =============================================================================
-
 def load_n_token(vocab_file: str, logger: logging.Logger) -> int:
     """
     Đọc phoneme_vocab.json và trả về n_token thực tế.
@@ -178,7 +165,6 @@ def load_n_token(vocab_file: str, logger: logging.Logger) -> int:
     logger.info(f"Loaded n_token = {n_token} từ {vocab_path.name}")
     return n_token
 
-
 def inject_n_token(config_dict: dict, n_token: int, logger: logging.Logger) -> dict:
     """
     Inject n_token thực tế vào config dict.
@@ -196,11 +182,7 @@ def inject_n_token(config_dict: dict, n_token: int, logger: logging.Logger) -> d
 
     return config
 
-
-# =============================================================================
 # CORE: AUTO-CHAIN CHECKPOINT
-# =============================================================================
-
 def find_best_checkpoint(log_dir: str, logger: logging.Logger) -> Optional[str]:
     """
     Quét thư mục log_dir của giai đoạn trước, tìm checkpoint tốt nhất.
@@ -238,7 +220,6 @@ def find_best_checkpoint(log_dir: str, logger: logging.Logger) -> Optional[str]:
     logger.info(f"  Chọn (mới nhất): {pth_files_sorted[0].name}")
 
     return chosen
-
 
 def auto_chain_checkpoint(
     config_dict: dict,
@@ -308,11 +289,7 @@ def auto_chain_checkpoint(
 
     return config
 
-
-# =============================================================================
 # CORE: PREPARE & RUN
-# =============================================================================
-
 def prepare_config(
     stage: int,
     wrapper_config: WrapperConfig,
@@ -375,7 +352,6 @@ def prepare_config(
     logger.info(f"Saved processed config: {processed_path}")
     return processed_path
 
-
 def resolve_data_paths(config_dict: dict, finetune_root: str, logger: logging.Logger) -> dict:
     """
     Chuyển các đường dẫn tương đối trong data_params thành absolute paths.
@@ -410,7 +386,6 @@ def resolve_data_paths(config_dict: dict, finetune_root: str, logger: logging.Lo
         logger.info(f"  Resolved log_dir: {log_dir} → {resolved}")
 
     return config
-
 
 def run_training(
     stage: int,
@@ -508,11 +483,7 @@ def run_training(
         logger.warning("Training đã dừng.")
         sys.exit(1)
 
-
-# =============================================================================
 # PRE-FLIGHT CHECKS
-# =============================================================================
-
 def preflight_checks(stage: int, wrapper_config: WrapperConfig, logger: logging.Logger):
     """Kiểm tra tất cả điều kiện trước khi chạy."""
     errors = []
@@ -544,7 +515,7 @@ def preflight_checks(stage: int, wrapper_config: WrapperConfig, logger: logging.
             logger.warning("CUDA không khả dụng! Training sẽ chạy trên CPU (rất chậm).")
         else:
             gpu_name = torch.cuda.get_device_name(0)
-            vram = torch.cuda.get_device_properties(0).total_mem / 1e9
+            vram = torch.cuda.get_device_properties(0).total_memory / 1e9
             logger.info(f"GPU: {gpu_name} ({vram:.1f} GB VRAM)")
     except ImportError:
         errors.append("PyTorch chưa được cài đặt!")
@@ -573,11 +544,7 @@ def preflight_checks(stage: int, wrapper_config: WrapperConfig, logger: logging.
     else:
         logger.info("Pre-flight checks: PASSED")
 
-
-# =============================================================================
 # MAIN
-# =============================================================================
-
 def main():
     parser = argparse.ArgumentParser(
         description="Train Wrapper — Nhạc trưởng điều phối 3 Giai đoạn Huấn luyện StyleTTS2"
