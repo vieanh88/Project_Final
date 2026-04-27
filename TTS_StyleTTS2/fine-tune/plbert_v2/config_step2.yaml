@@ -1,0 +1,113 @@
+# =============================================================================
+#  config_step2.yaml — Cấu hình BƯỚC 2: Train PL-BERT tiếng Việt (ALBERT)
+# =============================================================================
+#  Kiến trúc : AlbertModel (HuggingFace transformers) — tương thích 100%
+#              với Utils/PLBERT/util.py (load_plbert) của StyleTTS2
+#  Corpus    : 934,271 dòng | 126.8M ký tự | vocab 150 tokens
+#  Phần cứng : 24GB VRAM (RTX 4090)
+#
+#  Chạy lệnh:
+#    python step2_train_plbert.py --config config_step2.yaml
+#
+#  Output:
+#    checkpoints/config.yml     ← AlbertConfig cho load_plbert()
+#    checkpoints/step_XXXX.t7   ← Checkpoint (module.encoder.XXX format)
+#    checkpoints/plbert_vi_best.t7
+# =============================================================================
+
+paths:
+  work_dir: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert_v2/workdir"
+
+plbert_train:
+  # ─────────────────────────────────────────────────────────
+  #  ĐƯỜNG DẪN
+  # ─────────────────────────────────────────────────────────
+  # Corpus phoneme (output từ step1 — gộp ViVoice + Ngạn + OOD)
+  corpus_file: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert/output/all_corpus_phoneme.txt"
+
+  # Phoneme vocab (output từ prepare_vivoice/step4)
+  vocab_file: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/phoneme_vocab.json"
+
+  # Thư mục lưu checkpoints + config.yml
+  # load_plbert() sẽ đọc từ thư mục này:
+  #   - config.yml (AlbertConfig model_params)
+  #   - step_XXXX.t7 (checkpoint mới nhất)
+  output_dir: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert_v2/checkpoints"
+
+  # ─────────────────────────────────────────────────────────
+  #  KIẾN TRÚC MODEL (AlbertConfig parameters)
+  # ─────────────────────────────────────────────────────────
+  # ALBERT architecture — PHẢI tương thích với StyleTTS2:
+  #   - build_model() truy cập bert.config.hidden_size (768)
+  #   - build_model() truy cập bert.config.max_position_embeddings (512)
+  #   - bert_encoder = nn.Linear(bert.config.hidden_size, args.hidden_dim)
+
+  hidden_size: 768              # Hidden dimension — StyleTTS2 kỳ vọng 768
+  embedding_size: 128           # ALBERT factorized embedding (128 → project → 768)
+  num_attention_heads: 12       # Multi-head attention
+  num_hidden_layers: 12         # Transformer layers
+  num_hidden_groups: 1          # ALBERT shared layer groups
+  intermediate_size: 2048       # FFN inner dimension (giảm vs 3072 chuẩn, phù hợp corpus nhỏ)
+  max_position_embeddings: 512  # Max sequence length (phải >= max_seq_length)
+
+  hidden_dropout_prob: 0.1
+  attention_probs_dropout_prob: 0.1
+
+  # ─────────────────────────────────────────────────────────
+  #  TRAINING HYPERPARAMETERS
+  # ─────────────────────────────────────────────────────────
+  # Corpus ~934k dòng, batch=64 → ~14,597 steps/epoch
+  # 30 epochs → ~437,910 total steps
+  epochs: 30
+  batch_size: 64                # 24GB VRAM: 64 thoải mái với seq_length=256
+                                # Nếu OOM: giảm xuống 32
+  max_seq_length: 256           # Trung bình corpus ~135 chars → 256 là đủ
+
+  # Optimizer (AdamW)
+  learning_rate: 0.0001         # 1e-4 (chuẩn BERT pre-training)
+  weight_decay: 0.01            # L2 regularization
+  max_grad_norm: 1.0            # Gradient clipping
+
+  # Scheduler (Cosine với Linear Warmup)
+  warmup_steps: 2000            # ~0.5% total steps
+
+  # Masked Language Modeling
+  mlm_probability: 0.15         # Chuẩn BERT: mask 15% tokens
+                                # 80% → [MASK], 10% → random, 10% → giữ nguyên
+
+  # ─────────────────────────────────────────────────────────
+  #  EARLY STOPPING
+  # ─────────────────────────────────────────────────────────
+  early_stop_patience: 5        # Dừng nếu val_loss không cải thiện sau 5 epochs
+  early_stop_min_delta: 0.0005  # Ngưỡng cải thiện tối thiểu
+
+  # ─────────────────────────────────────────────────────────
+  #  HARDWARE
+  # ─────────────────────────────────────────────────────────
+  device: "cuda"
+  num_workers: 4                # DataLoader workers
+  fp16: true                    # Mixed precision → tiết kiệm ~40% VRAM
+
+  # ─────────────────────────────────────────────────────────
+  #  LOGGING & CHECKPOINT
+  # ─────────────────────────────────────────────────────────
+  log_interval: 200             # Log mỗi 200 steps
+
+  save_freq: 2                  # Lưu checkpoint mỗi 2 epochs
+  save_total_limit: 5           # Giữ tối đa 5 step_*.t7 (+ plbert_vi_best.t7)
+
+  # ─────────────────────────────────────────────────────────
+  #  VALIDATION
+  # ─────────────────────────────────────────────────────────
+  val_ratio: 0.02               # 2% corpus → ~18,685 samples làm validation
+
+# =============================================================================
+#  WEIGHTS & BIASES
+# =============================================================================
+wandb:
+  enabled: true
+  project: "story-ai-narrator"
+  run_name: "albert-vi-base-ep30-bs64"
+  entity: null
+  tags: "plbert,vietnamese,mlm,albert,stage-c2"
+  notes: "Train PL-BERT v2 tiếng Việt (ALBERT architecture). 934k phoneme corpus. ALBERT 12L/768H/128E. Cosine LR 1e-4. Early stopping patience=5."

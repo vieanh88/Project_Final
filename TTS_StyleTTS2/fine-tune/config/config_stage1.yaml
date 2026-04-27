@@ -11,15 +11,15 @@
 
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseBase"
-first_stage_path: ""                    # Để trống (train từ đầu)
+first_stage_path: "first_stage.pth"     # Để trống (train từ đầu)
 save_freq: 10                           # Lưu checkpoint mỗi 10 epochs
-log_interval: 20                        # Log mỗi 20 steps
+log_interval: 50                        # Log mỗi 50 steps
 device: "cuda"
 
 # --- Training Schedule ---
 epochs_1st: 100                         # Số epochs cho Stage 1
 epochs_2nd: 0                           # Không dùng (chỉ chạy 1st stage)
-batch_size: 32                          # VRAM 24GB: thử 16 trước, tăng 32 nếu đủ
+batch_size: 16                          # VRAM 24GB: thử 16 trước, tăng 32 nếu đủ
 max_len: 400                            # Max frames per sample
 
 # --- Checkpoint Loading ---
@@ -32,13 +32,13 @@ load_only_params: false
 F0_path: "Utils/JDC/bst.t7"
 ASR_config: "Utils/ASR/config.yml"
 ASR_path: "Utils/ASR/epoch_00080.pth"
-PLBERT_dir: "plbert/checkpoints/"       # ← PL-BERT tiếng Việt
+PLBERT_dir: "plbert_v2/checkpoints/"       # ← PL-BERT tiếng Việt
 
 # --- Data ---
 data_params:
   train_data: "data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
   val_data: "data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
-  root_path: ""                         # Để trống vì filelist đã chứa absolute path
+  root_path: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/"  # Thêm root_path để sửa lỗi đọc file
   OOD_data: ""                          # Không dùng OOD ở Stage 1
   min_length: 50
 

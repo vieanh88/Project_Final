@@ -14,7 +14,7 @@
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseExpressive"
 save_freq: 10                           # Lưu checkpoint mỗi 10 epochs
-log_interval: 20                        # Log mỗi 20 steps
+log_interval: 50                        # Log mỗi 50 steps
 device: "cuda"
 
 # --- Training Schedule ---
@@ -34,14 +34,14 @@ load_only_params: false
 F0_path: "Utils/JDC/bst.t7"
 ASR_config: "Utils/ASR/config.yml"
 ASR_path: "Utils/ASR/epoch_00080.pth"
-PLBERT_dir: "plbert/checkpoints/"       # ← PL-BERT tiếng Việt
+PLBERT_dir: "plbert_v2/checkpoints/"       # ← PL-BERT tiếng Việt
 
 # --- Data ---
 data_params:
   train_data: "data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
   val_data: "data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
-  root_path: ""
-  OOD_data: "data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"   # ← 50k câu truyện ma
+  root_path: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/"  # Thêm root_path để sửa lỗi đọc file
+  OOD_data: "data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"                                 # ← 50k câu truyện ma
   min_length: 50
 
 # --- Audio Preprocessing ---

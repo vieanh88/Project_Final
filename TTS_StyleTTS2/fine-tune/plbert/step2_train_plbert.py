@@ -14,7 +14,7 @@ Mục tiêu: Train mô hình PL-BERT từ đầu trên corpus phoneme tiếng Vi
 Đầu ra  : checkpoints/plbert_vi_stepXXXX.t7
 
 Chạy lệnh:
-    python step2_train_plbert.py --config config.yaml
+    python step2_train_plbert.py --config config_step2.yaml
     python step2_train_plbert.py \
         --corpus  "output/all_corpus_phoneme.txt" \
         --vocab   "output/phoneme_vocab.json"
@@ -92,7 +92,7 @@ class PLBERTConfig:
     max_grad_norm: float = 1.0
 
     # Scheduler
-    warmup_steps: int = 1000
+    warmup_steps: int = 2000
     lr_scheduler_type: str = "cosine"  # 'cosine' hoặc 'linear'
 
     # MLM
@@ -113,7 +113,7 @@ class PLBERTConfig:
 
     # --- Weights & Biases ---
     wandb_enabled: bool = True          # Bật/tắt wandb logging
-    wandb_project: str = "plbert-vietnamese"  # Tên project trên wandb
+    wandb_project: str = "story-ai-narrator" # Tên project trên wandb
     wandb_run_name: Optional[str] = None     # Tên phiên chạy (None = wandb tự sinh)
     wandb_entity: Optional[str] = None       # Team/username trên wandb (None = mặc định)
     wandb_tags: Optional[str] = None         # Tags phân loại, cách nhau bằng dấu phẩy
@@ -151,6 +151,7 @@ class PLBERTConfig:
         config.max_grad_norm = plbert.get("max_grad_norm", config.max_grad_norm)
         config.warmup_steps = plbert.get("warmup_steps", config.warmup_steps)
         config.mlm_probability = plbert.get("mlm_probability", config.mlm_probability)
+        config.lr_scheduler_type = plbert.get("lr_scheduler_type", config.lr_scheduler_type)
 
         # Hardware
         config.device = plbert.get("device", config.device)

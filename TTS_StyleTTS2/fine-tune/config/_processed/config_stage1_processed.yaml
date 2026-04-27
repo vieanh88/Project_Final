@@ -1,12 +1,12 @@
 ASR_config: Utils/ASR/config.yml
 ASR_path: Utils/ASR/epoch_00080.pth
 F0_path: Utils/JDC/bst.t7
-PLBERT_dir: D:\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\plbert\checkpoints
-batch_size: 32
+PLBERT_dir: D:\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\plbert_v2\checkpoints
+batch_size: 16
 data_params:
   OOD_data: ''
   min_length: 50
-  root_path: ''
+  root_path: D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/
   train_data: D:\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\data_pipeline\prepare_vivoice\output\vivoice_train_list.txt
   val_data: D:\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\data_pipeline\prepare_vivoice\output\vivoice_val_list.txt
 device: cuda

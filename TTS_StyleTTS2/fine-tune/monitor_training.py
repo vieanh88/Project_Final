@@ -71,18 +71,18 @@ class MonitorConfig:
     secondary_metric: str = "eval/mono_align_loss"
 
     # --- Plateau detection ---
-    patience: int = 10                # Số epochs liên tiếp không giảm đáng kể
-    min_delta: float = 0.0005         # Mức giảm tối thiểu được coi là "có cải thiện"
+    patience: int = 5                # Số epochs liên tiếp không giảm đáng kể
+    min_delta: float = 0.001         # Mức giảm tối thiểu được coi là "có cải thiện"
 
     # --- Overfitting detection ---
     overfitting_patience: int = 5     # Val loss tăng liên tiếp N epochs → cảnh báo
     overfitting_min_increase: float = 0.01  # Mức tăng tối thiểu coi là "đang overfit"
 
     # --- Progress report ---
-    progress_report_interval: int = 20  # Báo cáo mỗi N epochs
+    progress_report_interval: int = 10  # Báo cáo mỗi N epochs
 
     # --- Polling interval ---
-    poll_interval_s: int = 30          # Scan TensorBoard mỗi N giây
+    poll_interval_s: int = 60          # Scan TensorBoard mỗi N giây
 
     # --- Discord Webhooks ---
     # 2 URL để gửi tới 2 thiết bị
@@ -800,14 +800,14 @@ def main():
     parser.add_argument(
         "--patience",
         type=int,
-        default=10,
-        help="Patience cho plateau detection (mặc định: 10)",
+        default=5,
+        help="Patience cho plateau detection (mặc định: 5)",
     )
     parser.add_argument(
         "--min-delta",
         type=float,
-        default=0.0005,
-        help="Min delta cho plateau detection (mặc định: 0.0005)",
+        default=0.001,
+        help="Min delta cho plateau detection (mặc định: 0.001)",
     )
     parser.add_argument(
         "--primary-metric",
@@ -824,14 +824,14 @@ def main():
     parser.add_argument(
         "--progress-report-interval",
         type=int,
-        default=20,
-        help="Báo cáo tiến độ mỗi N epochs (mặc định: 20)",
+        default=10,
+        help="Báo cáo tiến độ mỗi N epochs (mặc định: 10)",
     )
     parser.add_argument(
         "--poll-interval",
         type=int,
-        default=30,
-        help="Khoảng thời gian scan TensorBoard (giây, mặc định: 30)",
+        default=60,
+        help="Khoảng thời gian scan TensorBoard (giây, mặc định: 60)",
     )
     parser.add_argument(
         "--webhook-1",

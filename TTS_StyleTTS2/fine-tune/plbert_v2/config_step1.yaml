@@ -1,0 +1,37 @@
+#  config.yaml - Cấu hình cho bước 1: Xây dựng corpus phoneme cho PLBERT
+paths:
+  # work_dir = nơi lưu log (logs/plbert_step1_build_corpus.log)
+  work_dir: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert_v2/workdir"
+
+  # output_dir = nơi lưu all_corpus_phoneme.txt và corpus_stats.json
+  output_dir: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/plbert_v2/output"
+
+
+plbert:
+  # --- File nguồn dạng filelist (wav_path|phoneme|speaker_id) ---
+  # Code trích cột thứ 2 (index 1) = phoneme
+  filelist_sources:
+    - "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
+    - "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
+    - "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_ngan/output/ngan_train_list.txt"
+    - "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_ngan/output/ngan_val_list.txt"
+
+  # --- File nguồn dạng OOD (1 dòng = 1 chuỗi phoneme) ---
+  ood_sources:
+    - "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"
+
+  # File output
+  corpus_file: "all_corpus_phoneme.txt"
+  stats_file: "corpus_stats.json"
+
+  # Xử lý
+  deduplicate: true
+  shuffle: true
+  random_seed: 42
+
+  # Lọc độ dài phoneme (ký tự)
+  min_length: 5
+  max_length: 10000
+
+  # Bỏ qua nếu output đã tồn tại
+  skip_existing: false
