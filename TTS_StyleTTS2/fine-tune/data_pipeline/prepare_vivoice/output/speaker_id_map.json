@@ -1,0 +1,951 @@
+{
+  "_metadata": {
+    "description": "Mapping channel ↔ speaker_id cho ViVoice multispeaker training",
+    "min_samples_per_speaker": 20,
+    "reserved_ids": {
+      "ngan": 0,
+      "other": 999,
+      "vivoice_start": 1
+    },
+    "total_channels": 186,
+    "unique_speaker_ids": 186,
+    "train_records": 843383,
+    "val_records": 44389
+  },
+  "channel_to_speaker_id": {
+    "@VoizFM": 1,
+    "@FonosVietnam": 2,
+    "@tamhonanuong": 3,
+    "@Nhantaidaiviet": 4,
+    "@Web5Ngay": 5,
+    "@VuTruNguyenThuy": 6,
+    "@betterversionvn": 7,
+    "@AnimeRewind.Official": 8,
+    "@ducisreal": 9,
+    "@caikinhdi_vn": 10,
+    "@W2WAnime": 11,
+    "@PhePhim": 12,
+    "@SachBiQuyetThanhCong": 13,
+    "@sunhuynpodcast": 14,
+    "@meGAME_Official": 15,
+    "@Spiderum": 16,
+    "@kenhCoVan": 17,
+    "@W2WMovie": 18,
+    "@SoiSangBrightSideVietnamese": 19,
+    "@battlecry.khampha": 20,
+    "@cosu": 21,
+    "@NgamRadio": 22,
+    "@hacthaybachthay": 23,
+    "@TULEMIENTAY": 24,
+    "@SpiderumBooks": 25,
+    "@KienThucQuanSu": 26,
+    "@CoBaBinhDuong": 27,
+    "@SUCKHOETAMSINH": 28,
+    "@chanthienmybachnien": 29,
+    "@BroNub": 30,
+    "@PhanTichGame": 31,
+    "@jakinatsumi2915": 32,
+    "@daylaphegame": 33,
+    "@hieu-tv": 34,
+    "@HIEUROTRONG5PHUT-NTKT": 35,
+    "@vanhkhuyenle": 36,
+    "@ThanhPahm": 37,
+    "@visaothenhipodcast": 38,
+    "@duongfg": 39,
+    "@gc.gamelab": 40,
+    "@CuThongThai": 41,
+    "@SukiesKitchen": 42,
+    "@W2WHorror": 43,
+    "@Xanh24h": 44,
+    "@CosmicWriter": 45,
+    "@W2WCartoon": 46,
+    "@VOVLiveDocTruyen": 47,
+    "@nguoithanhcong1991": 48,
+    "@duythanhish": 49,
+    "@HocvienBovaGau": 50,
+    "@CDTeam-Why": 51,
+    "@LamVlog": 52,
+    "@baihoc10phut": 53,
+    "@hangphimtailieudienanhnd": 54,
+    "@VuiVe": 55,
+    "@MangoVid": 56,
+    "@Vietcetera": 57,
+    "@HuynhLapOfficial": 58,
+    "@RiwayLegal": 59,
+    "@cungmaivaobep-monan-amthuc": 60,
+    "@Tieubaobaothom": 61,
+    "@5PhutCrypto": 62,
+    "@BaodientuVOV": 63,
+    "@AnhThamTu": 64,
+    "@HappyHidari": 65,
+    "@TuanTienTi2911": 66,
+    "@bumcn": 67,
+    "@blogkhoinghiep": 68,
+    "@truyenhinh4k": 69,
+    "@ThaiNhiTV": 70,
+    "@duyluandethuong": 71,
+    "@vtcnow": 72,
+    "@DaiHaNoi-HTV": 73,
+    "@HocEnglishOnline": 74,
+    "@KhanhVyOFFICIAL": 75,
+    "@dienmay": 76,
+    "@HuynhDuyKhuongofficial": 77,
+    "@vietnh1009": 78,
+    "@AnhBanThan": 79,
+    "@dannytran2375": 80,
+    "@HungyentvVnGo": 81,
+    "@elroydevops": 82,
+    "@minvestvn": 83,
+    "@nhatkycuocsong.": 84,
+    "@DongMauViet": 85,
+    "@hoshiphan": 86,
+    "@NTNVlogsNguyenThanhNam": 87,
+    "@truyenhinhvinhphuc": 88,
+    "@aiphatthanhvatruyenhinhhai1908": 89,
+    "@ptthquangbinh": 90,
+    "@MensBay": 91,
+    "@ntcanima": 92,
+    "@tgddreview": 93,
+    "@vtv24": 94,
+    "@tranvyvy": 95,
+    "@truyenhinhgialai": 96,
+    "@daitruyenhinhbacgiang": 97,
+    "@tranquochuywecommit": 98,
+    "@RuaNgao": 99,
+    "@TintucBitcoin247": 100,
+    "@truyenhinhnghean": 101,
+    "@thaibinhtv": 102,
+    "@TruyenhinhCaoBang": 103,
+    "@TruyenhinhDienBien23.9": 104,
+    "@toansam": 105,
+    "@MeovatcuocsongLNV": 106,
+    "@hagiangtv475": 107,
+    "@HoabinhTVgo": 108,
+    "@TruyenHinhYenBaiYTV": 109,
+    "@BIBITV8888": 110,
+    "@TheGioiLaptop": 111,
+    "@kechuyentieuhoc1719": 112,
+    "@TruyenhinhDakLakDRT": 113,
+    "@FPTBongDaOfficial": 114,
+    "@TuyenQuangTTV": 115,
+    "@KENHVTC16": 116,
+    "@quangninhtv": 117,
+    "@TruyenhinhDakNong1": 118,
+    "@BoringPPL": 119,
+    "@txtofficial8798": 120,
+    "@laichautv": 121,
+    "@truyenhinhbinhthuan": 122,
+    "@hanamtv8831": 123,
+    "@JVevermind": 124,
+    "@truyenhinhlaocai": 125,
+    "@haiduongtv247": 126,
+    "@BlvckVines": 127,
+    "@PTVtruyenhinhphutho": 128,
+    "@TruyenhinhKhanhHoa": 129,
+    "@DaiPTTHThaiNguyenTNTV": 130,
+    "@kiaralah": 131,
+    "@soctrangtv": 132,
+    "@ThePresentWriter": 133,
+    "@vtc14": 134,
+    "@thieunhitv3630": 135,
+    "@DAIPHATTHANHTRUYENHINHSONLA": 136,
+    "@thanhnientvnews": 137,
+    "@TruyenhinhNinhThuan": 138,
+    "@DongThapTV": 139,
+    "@snewsvn": 140,
+    "@thbrt": 141,
+    "@PTTH-TRT": 142,
+    "@daiptthphuyen": 143,
+    "@TienGiangTiVi": 144,
+    "@aiPhatthanhTruyenhinhQuangTri": 145,
+    "@qrt": 146,
+    "@TruyenHinhBinhPhuoc-BPTV": 147,
+    "@chauanhchao": 148,
+    "@KIENGIANGTV": 149,
+    "@zombiev4": 150,
+    "@NhaNhac555": 151,
+    "@vuive123": 152,
+    "@HTVTinTuc": 153,
+    "@DaNangTV": 154,
+    "@VinhLongTV": 155,
+    "@TayNinhTV": 156,
+    "@TIN3PHUT": 157,
+    "@truyenhinhdongnai_dnrtv": 158,
+    "@langsontvtube": 159,
+    "@LongAnTV-LA34": 160,
+    "@haunauday": 161,
+    "@TRANTHANHTOWN": 162,
+    "@BTVGO": 163,
+    "@TruyenhinhNaminhNTV": 164,
+    "@BacLieuTV": 165,
+    "@haugiangtv": 166,
+    "@tinnhanh3phut868": 167,
+    "@MeuChannel": 168,
+    "@TruyenhinhQuangNgai": 169,
+    "@thanhnamedu": 170,
+    "@daitruyenhinhangiang": 171,
+    "@TruyenhinhKonTumKRT": 172,
+    "@ptthbentre": 173,
+    "@altonghop": 174,
+    "@canthitg": 175,
+    "@daiptthtv": 176,
+    "@toidicodedaoblog": 177,
+    "@thtpct": 178,
+    "@LamDongTV1": 179,
+    "@daybehoc5489": 180,
+    "@BachHoaXANHcom": 181,
+    "@PhimHOTTK-L": 182,
+    "@khalid_dinh": 183,
+    "@antvtruyenhinhcongannhandan": 184,
+    "@truyenhinhcamau69": 185,
+    "@DAY-BE-THONG-MINH-TV": 186
+  },
+  "speaker_id_to_channels": {
+    "1": [
+      "@VoizFM"
+    ],
+    "2": [
+      "@FonosVietnam"
+    ],
+    "3": [
+      "@tamhonanuong"
+    ],
+    "4": [
+      "@Nhantaidaiviet"
+    ],
+    "5": [
+      "@Web5Ngay"
+    ],
+    "6": [
+      "@VuTruNguyenThuy"
+    ],
+    "7": [
+      "@betterversionvn"
+    ],
+    "8": [
+      "@AnimeRewind.Official"
+    ],
+    "9": [
+      "@ducisreal"
+    ],
+    "10": [
+      "@caikinhdi_vn"
+    ],
+    "11": [
+      "@W2WAnime"
+    ],
+    "12": [
+      "@PhePhim"
+    ],
+    "13": [
+      "@SachBiQuyetThanhCong"
+    ],
+    "14": [
+      "@sunhuynpodcast"
+    ],
+    "15": [
+      "@meGAME_Official"
+    ],
+    "16": [
+      "@Spiderum"
+    ],
+    "17": [
+      "@kenhCoVan"
+    ],
+    "18": [
+      "@W2WMovie"
+    ],
+    "19": [
+      "@SoiSangBrightSideVietnamese"
+    ],
+    "20": [
+      "@battlecry.khampha"
+    ],
+    "21": [
+      "@cosu"
+    ],
+    "22": [
+      "@NgamRadio"
+    ],
+    "23": [
+      "@hacthaybachthay"
+    ],
+    "24": [
+      "@TULEMIENTAY"
+    ],
+    "25": [
+      "@SpiderumBooks"
+    ],
+    "26": [
+      "@KienThucQuanSu"
+    ],
+    "27": [
+      "@CoBaBinhDuong"
+    ],
+    "28": [
+      "@SUCKHOETAMSINH"
+    ],
+    "29": [
+      "@chanthienmybachnien"
+    ],
+    "30": [
+      "@BroNub"
+    ],
+    "31": [
+      "@PhanTichGame"
+    ],
+    "32": [
+      "@jakinatsumi2915"
+    ],
+    "33": [
+      "@daylaphegame"
+    ],
+    "34": [
+      "@hieu-tv"
+    ],
+    "35": [
+      "@HIEUROTRONG5PHUT-NTKT"
+    ],
+    "36": [
+      "@vanhkhuyenle"
+    ],
+    "37": [
+      "@ThanhPahm"
+    ],
+    "38": [
+      "@visaothenhipodcast"
+    ],
+    "39": [
+      "@duongfg"
+    ],
+    "40": [
+      "@gc.gamelab"
+    ],
+    "41": [
+      "@CuThongThai"
+    ],
+    "42": [
+      "@SukiesKitchen"
+    ],
+    "43": [
+      "@W2WHorror"
+    ],
+    "44": [
+      "@Xanh24h"
+    ],
+    "45": [
+      "@CosmicWriter"
+    ],
+    "46": [
+      "@W2WCartoon"
+    ],
+    "47": [
+      "@VOVLiveDocTruyen"
+    ],
+    "48": [
+      "@nguoithanhcong1991"
+    ],
+    "49": [
+      "@duythanhish"
+    ],
+    "50": [
+      "@HocvienBovaGau"
+    ],
+    "51": [
+      "@CDTeam-Why"
+    ],
+    "52": [
+      "@LamVlog"
+    ],
+    "53": [
+      "@baihoc10phut"
+    ],
+    "54": [
+      "@hangphimtailieudienanhnd"
+    ],
+    "55": [
+      "@VuiVe"
+    ],
+    "56": [
+      "@MangoVid"
+    ],
+    "57": [
+      "@Vietcetera"
+    ],
+    "58": [
+      "@HuynhLapOfficial"
+    ],
+    "59": [
+      "@RiwayLegal"
+    ],
+    "60": [
+      "@cungmaivaobep-monan-amthuc"
+    ],
+    "61": [
+      "@Tieubaobaothom"
+    ],
+    "62": [
+      "@5PhutCrypto"
+    ],
+    "63": [
+      "@BaodientuVOV"
+    ],
+    "64": [
+      "@AnhThamTu"
+    ],
+    "65": [
+      "@HappyHidari"
+    ],
+    "66": [
+      "@TuanTienTi2911"
+    ],
+    "67": [
+      "@bumcn"
+    ],
+    "68": [
+      "@blogkhoinghiep"
+    ],
+    "69": [
+      "@truyenhinh4k"
+    ],
+    "70": [
+      "@ThaiNhiTV"
+    ],
+    "71": [
+      "@duyluandethuong"
+    ],
+    "72": [
+      "@vtcnow"
+    ],
+    "73": [
+      "@DaiHaNoi-HTV"
+    ],
+    "74": [
+      "@HocEnglishOnline"
+    ],
+    "75": [
+      "@KhanhVyOFFICIAL"
+    ],
+    "76": [
+      "@dienmay"
+    ],
+    "77": [
+      "@HuynhDuyKhuongofficial"
+    ],
+    "78": [
+      "@vietnh1009"
+    ],
+    "79": [
+      "@AnhBanThan"
+    ],
+    "80": [
+      "@dannytran2375"
+    ],
+    "81": [
+      "@HungyentvVnGo"
+    ],
+    "82": [
+      "@elroydevops"
+    ],
+    "83": [
+      "@minvestvn"
+    ],
+    "84": [
+      "@nhatkycuocsong."
+    ],
+    "85": [
+      "@DongMauViet"
+    ],
+    "86": [
+      "@hoshiphan"
+    ],
+    "87": [
+      "@NTNVlogsNguyenThanhNam"
+    ],
+    "88": [
+      "@truyenhinhvinhphuc"
+    ],
+    "89": [
+      "@aiphatthanhvatruyenhinhhai1908"
+    ],
+    "90": [
+      "@ptthquangbinh"
+    ],
+    "91": [
+      "@MensBay"
+    ],
+    "92": [
+      "@ntcanima"
+    ],
+    "93": [
+      "@tgddreview"
+    ],
+    "94": [
+      "@vtv24"
+    ],
+    "95": [
+      "@tranvyvy"
+    ],
+    "96": [
+      "@truyenhinhgialai"
+    ],
+    "97": [
+      "@daitruyenhinhbacgiang"
+    ],
+    "98": [
+      "@tranquochuywecommit"
+    ],
+    "99": [
+      "@RuaNgao"
+    ],
+    "100": [
+      "@TintucBitcoin247"
+    ],
+    "101": [
+      "@truyenhinhnghean"
+    ],
+    "102": [
+      "@thaibinhtv"
+    ],
+    "103": [
+      "@TruyenhinhCaoBang"
+    ],
+    "104": [
+      "@TruyenhinhDienBien23.9"
+    ],
+    "105": [
+      "@toansam"
+    ],
+    "106": [
+      "@MeovatcuocsongLNV"
+    ],
+    "107": [
+      "@hagiangtv475"
+    ],
+    "108": [
+      "@HoabinhTVgo"
+    ],
+    "109": [
+      "@TruyenHinhYenBaiYTV"
+    ],
+    "110": [
+      "@BIBITV8888"
+    ],
+    "111": [
+      "@TheGioiLaptop"
+    ],
+    "112": [
+      "@kechuyentieuhoc1719"
+    ],
+    "113": [
+      "@TruyenhinhDakLakDRT"
+    ],
+    "114": [
+      "@FPTBongDaOfficial"
+    ],
+    "115": [
+      "@TuyenQuangTTV"
+    ],
+    "116": [
+      "@KENHVTC16"
+    ],
+    "117": [
+      "@quangninhtv"
+    ],
+    "118": [
+      "@TruyenhinhDakNong1"
+    ],
+    "119": [
+      "@BoringPPL"
+    ],
+    "120": [
+      "@txtofficial8798"
+    ],
+    "121": [
+      "@laichautv"
+    ],
+    "122": [
+      "@truyenhinhbinhthuan"
+    ],
+    "123": [
+      "@hanamtv8831"
+    ],
+    "124": [
+      "@JVevermind"
+    ],
+    "125": [
+      "@truyenhinhlaocai"
+    ],
+    "126": [
+      "@haiduongtv247"
+    ],
+    "127": [
+      "@BlvckVines"
+    ],
+    "128": [
+      "@PTVtruyenhinhphutho"
+    ],
+    "129": [
+      "@TruyenhinhKhanhHoa"
+    ],
+    "130": [
+      "@DaiPTTHThaiNguyenTNTV"
+    ],
+    "131": [
+      "@kiaralah"
+    ],
+    "132": [
+      "@soctrangtv"
+    ],
+    "133": [
+      "@ThePresentWriter"
+    ],
+    "134": [
+      "@vtc14"
+    ],
+    "135": [
+      "@thieunhitv3630"
+    ],
+    "136": [
+      "@DAIPHATTHANHTRUYENHINHSONLA"
+    ],
+    "137": [
+      "@thanhnientvnews"
+    ],
+    "138": [
+      "@TruyenhinhNinhThuan"
+    ],
+    "139": [
+      "@DongThapTV"
+    ],
+    "140": [
+      "@snewsvn"
+    ],
+    "141": [
+      "@thbrt"
+    ],
+    "142": [
+      "@PTTH-TRT"
+    ],
+    "143": [
+      "@daiptthphuyen"
+    ],
+    "144": [
+      "@TienGiangTiVi"
+    ],
+    "145": [
+      "@aiPhatthanhTruyenhinhQuangTri"
+    ],
+    "146": [
+      "@qrt"
+    ],
+    "147": [
+      "@TruyenHinhBinhPhuoc-BPTV"
+    ],
+    "148": [
+      "@chauanhchao"
+    ],
+    "149": [
+      "@KIENGIANGTV"
+    ],
+    "150": [
+      "@zombiev4"
+    ],
+    "151": [
+      "@NhaNhac555"
+    ],
+    "152": [
+      "@vuive123"
+    ],
+    "153": [
+      "@HTVTinTuc"
+    ],
+    "154": [
+      "@DaNangTV"
+    ],
+    "155": [
+      "@VinhLongTV"
+    ],
+    "156": [
+      "@TayNinhTV"
+    ],
+    "157": [
+      "@TIN3PHUT"
+    ],
+    "158": [
+      "@truyenhinhdongnai_dnrtv"
+    ],
+    "159": [
+      "@langsontvtube"
+    ],
+    "160": [
+      "@LongAnTV-LA34"
+    ],
+    "161": [
+      "@haunauday"
+    ],
+    "162": [
+      "@TRANTHANHTOWN"
+    ],
+    "163": [
+      "@BTVGO"
+    ],
+    "164": [
+      "@TruyenhinhNaminhNTV"
+    ],
+    "165": [
+      "@BacLieuTV"
+    ],
+    "166": [
+      "@haugiangtv"
+    ],
+    "167": [
+      "@tinnhanh3phut868"
+    ],
+    "168": [
+      "@MeuChannel"
+    ],
+    "169": [
+      "@TruyenhinhQuangNgai"
+    ],
+    "170": [
+      "@thanhnamedu"
+    ],
+    "171": [
+      "@daitruyenhinhangiang"
+    ],
+    "172": [
+      "@TruyenhinhKonTumKRT"
+    ],
+    "173": [
+      "@ptthbentre"
+    ],
+    "174": [
+      "@altonghop"
+    ],
+    "175": [
+      "@canthitg"
+    ],
+    "176": [
+      "@daiptthtv"
+    ],
+    "177": [
+      "@toidicodedaoblog"
+    ],
+    "178": [
+      "@thtpct"
+    ],
+    "179": [
+      "@LamDongTV1"
+    ],
+    "180": [
+      "@daybehoc5489"
+    ],
+    "181": [
+      "@BachHoaXANHcom"
+    ],
+    "182": [
+      "@PhimHOTTK-L"
+    ],
+    "183": [
+      "@khalid_dinh"
+    ],
+    "184": [
+      "@antvtruyenhinhcongannhandan"
+    ],
+    "185": [
+      "@truyenhinhcamau69"
+    ],
+    "186": [
+      "@DAY-BE-THONG-MINH-TV"
+    ]
+  },
+  "speaker_id_record_counts": {
+    "1": 99847,
+    "2": 99834,
+    "3": 20185,
+    "4": 19540,
+    "5": 19506,
+    "6": 17199,
+    "7": 16903,
+    "8": 15524,
+    "9": 12543,
+    "10": 12475,
+    "11": 12217,
+    "12": 11655,
+    "13": 11489,
+    "14": 10983,
+    "15": 10605,
+    "16": 10481,
+    "17": 10443,
+    "18": 10425,
+    "19": 10227,
+    "20": 9777,
+    "21": 9715,
+    "22": 9603,
+    "23": 9584,
+    "24": 9138,
+    "25": 9135,
+    "26": 8752,
+    "27": 8676,
+    "28": 8264,
+    "29": 8054,
+    "30": 7959,
+    "31": 7925,
+    "32": 7710,
+    "33": 7693,
+    "34": 7426,
+    "35": 7250,
+    "36": 7026,
+    "37": 6921,
+    "38": 6910,
+    "39": 6494,
+    "40": 6299,
+    "41": 6054,
+    "42": 5960,
+    "43": 5696,
+    "44": 5680,
+    "45": 5599,
+    "46": 5564,
+    "47": 5414,
+    "48": 5359,
+    "49": 5275,
+    "50": 5226,
+    "51": 4887,
+    "52": 4875,
+    "53": 4851,
+    "54": 4850,
+    "55": 4813,
+    "56": 4795,
+    "57": 4527,
+    "58": 4381,
+    "59": 4314,
+    "60": 4204,
+    "61": 4162,
+    "62": 4134,
+    "63": 4133,
+    "64": 4064,
+    "65": 3819,
+    "66": 3767,
+    "67": 3544,
+    "68": 3477,
+    "69": 3472,
+    "70": 3335,
+    "71": 3324,
+    "72": 3109,
+    "73": 3090,
+    "74": 3021,
+    "75": 3011,
+    "76": 2974,
+    "77": 2920,
+    "78": 2835,
+    "79": 2809,
+    "80": 2809,
+    "81": 2513,
+    "82": 2505,
+    "83": 2442,
+    "84": 2439,
+    "85": 2339,
+    "86": 2335,
+    "87": 2323,
+    "88": 2272,
+    "89": 2129,
+    "90": 2071,
+    "91": 2064,
+    "92": 2061,
+    "93": 2034,
+    "94": 1988,
+    "95": 1945,
+    "96": 1863,
+    "97": 1859,
+    "98": 1832,
+    "99": 1775,
+    "100": 1744,
+    "101": 1742,
+    "102": 1677,
+    "103": 1676,
+    "104": 1649,
+    "105": 1648,
+    "106": 1640,
+    "107": 1634,
+    "108": 1622,
+    "109": 1613,
+    "110": 1548,
+    "111": 1497,
+    "112": 1469,
+    "113": 1429,
+    "114": 1417,
+    "115": 1378,
+    "116": 1324,
+    "117": 1275,
+    "118": 1246,
+    "119": 1215,
+    "120": 1208,
+    "121": 1195,
+    "122": 1190,
+    "123": 1154,
+    "124": 1131,
+    "125": 1094,
+    "126": 1093,
+    "127": 1079,
+    "128": 1044,
+    "129": 1032,
+    "130": 985,
+    "131": 966,
+    "132": 961,
+    "133": 952,
+    "134": 937,
+    "135": 908,
+    "136": 906,
+    "137": 880,
+    "138": 853,
+    "139": 837,
+    "140": 825,
+    "141": 820,
+    "142": 769,
+    "143": 759,
+    "144": 727,
+    "145": 718,
+    "146": 718,
+    "147": 705,
+    "148": 696,
+    "149": 679,
+    "150": 665,
+    "151": 661,
+    "152": 646,
+    "153": 624,
+    "154": 592,
+    "155": 586,
+    "156": 582,
+    "157": 573,
+    "158": 569,
+    "159": 567,
+    "160": 555,
+    "161": 511,
+    "162": 510,
+    "163": 495,
+    "164": 493,
+    "165": 487,
+    "166": 483,
+    "167": 475,
+    "168": 464,
+    "169": 464,
+    "170": 451,
+    "171": 448,
+    "172": 440,
+    "173": 432,
+    "174": 404,
+    "175": 385,
+    "176": 378,
+    "177": 355,
+    "178": 352,
+    "179": 347,
+    "180": 321,
+    "181": 311,
+    "182": 259,
+    "183": 124,
+    "184": 95,
+    "185": 66,
+    "186": 24
+  }
+}

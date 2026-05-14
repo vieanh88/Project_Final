@@ -17,7 +17,7 @@ paths:
   phonemize_script: "D:/HUST_Project/Project_Final/data/StyleTTS2_preprocess/step08_phonemize.py"
 
   # Đường dẫn tuyệt đối đến repo StyleTTS2 gốc
-  styletts2_root: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/StyleTTS2"
+  styletts2_root: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/StyleTTS2"j
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  BƯỚC 1: DOWNLOAD — Tải dataset ViVoice từ Hugging Face

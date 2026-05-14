@@ -1,4 +1,4 @@
-## Roadmap cập nhật (17 files)
+## Roadmap cập nhật (21 files)
 
 **A. Data Preparation — ViVoice (5 scripts + 1 config)**
 
@@ -24,8 +24,9 @@
 
 | # | File | Mô tả |
 |---|------|-------|
-| C1 | `prepare_plbert/step1_build_corpus.py` | Gộp phoneme text từ ViVoice + Ngạn + OOD → `all_corpus_phoneme.txt` |
-| C2 | `prepare_plbert/step2_train_plbert.py` | Train PL-BERT từ đầu với vocab mới |
+| C1 | `plbert_v2/step1_build_corpus.py` | Gộp phoneme text từ ViVoice + Ngạn + OOD → `all_corpus_phoneme.txt` |
+| C2 | `plbert_v2/step2_train_plbert.py` | Train PL-BERT từ đầu với vocab mới |
+| C3 | `plbert_v2/verify_plbert_checkpoint.py` | Copy Utils/PLBERT/util.py của StyleTTS2 để kiểm tra checkpoint |
 
 **D. Training Configs & Wrapper (4 files)**
 
@@ -43,3 +44,4 @@
 | E1 | `nlp_generator.py` | Phase 1: Truyện .txt → Qwen API → `script.json` |
 | E2 | `create_mean_style.py` | Trích xuất mean style vector → `ngan_mean_style.pt` |
 | E3 | `tts_generator.py` | Phase 2: JSON → phonemize → TTS → silence padding → export .wav |
+| E4 | `monitor_training.py` | Script giám sát độc lập gửi thông báo qua discord webhook |

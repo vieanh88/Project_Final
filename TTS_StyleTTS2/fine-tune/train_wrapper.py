@@ -183,13 +183,24 @@ def inject_n_token(config_dict: dict, n_token: int, logger: logging.Logger) -> d
     return config
 
 # CORE: AUTO-CHAIN CHECKPOINT
-def find_best_checkpoint(log_dir: str, logger: logging.Logger) -> Optional[str]:
+def find_best_checkpoint(
+    log_dir: str,
+    logger: logging.Logger,
+    prefix_filter: Optional[str] = None,
+) -> Optional[str]:
     """
     Quét thư mục log_dir của giai đoạn trước, tìm checkpoint tốt nhất.
 
     Heuristic ưu tiên:
     1. File có tên chứa "best" → chọn ngay
     2. File .pth mới nhất (theo modification time)
+
+    Args:
+        log_dir: thư mục cần quét
+        logger: logger
+        prefix_filter: nếu set, chỉ tìm các file có tên BẮT ĐẦU bằng prefix này
+                       (ví dụ "epoch_1st_" để chỉ lấy ckpt Stage 1, tránh nhầm
+                       với epoch_2nd_*.pth nếu cùng folder)
 
     Returns:
         Đường dẫn tuyệt đối tới checkpoint, hoặc None nếu không tìm thấy.
@@ -199,13 +210,28 @@ def find_best_checkpoint(log_dir: str, logger: logging.Logger) -> Optional[str]:
         logger.warning(f"Thư mục log không tồn tại: {log_path}")
         return None
 
-    # Tìm tất cả file .pth
-    pth_files = list(log_path.rglob("*.pth"))
+    # Tìm tất cả file .pth (không recursive — tránh lẫn ckpt từ subdir khác)
+    pth_files = list(log_path.glob("*.pth"))
     if not pth_files:
         logger.warning(f"Không tìm thấy file .pth trong: {log_path}")
         return None
 
-    logger.info(f"Tìm thấy {len(pth_files)} checkpoint(s) trong {log_path}")
+    # Filter theo prefix nếu cần
+    if prefix_filter:
+        before = len(pth_files)
+        pth_files = [f for f in pth_files if f.name.startswith(prefix_filter)]
+        logger.info(
+            f"Lọc theo prefix '{prefix_filter}': "
+            f"{before} → {len(pth_files)} file(s)"
+        )
+        if not pth_files:
+            logger.warning(
+                f"Không tìm thấy file .pth nào có prefix '{prefix_filter}' "
+                f"trong: {log_path}"
+            )
+            return None
+    else:
+        logger.info(f"Tìm thấy {len(pth_files)} checkpoint(s) trong {log_path}")
 
     # Ưu tiên 1: File có "best" trong tên
     best_files = [f for f in pth_files if "best" in f.name.lower()]
@@ -214,12 +240,116 @@ def find_best_checkpoint(log_dir: str, logger: logging.Logger) -> Optional[str]:
         logger.info(f"  Chọn (best): {best_files[0].name}")
         return chosen
 
-    # Ưu tiên 2: File mới nhất
+    # Ưu tiên 2: File mới nhất (theo mtime)
     pth_files_sorted = sorted(pth_files, key=lambda f: f.stat().st_mtime, reverse=True)
     chosen = str(pth_files_sorted[0].resolve())
     logger.info(f"  Chọn (mới nhất): {pth_files_sorted[0].name}")
 
     return chosen
+
+
+def _resolve_log_dir(prev_config_path: Path, finetune_root: str) -> str:
+    """Đọc log_dir từ config của stage trước, resolve thành absolute path."""
+    if not prev_config_path.exists():
+        return ""
+    with open(prev_config_path, "r", encoding="utf-8") as f:
+        prev_config = yaml.safe_load(f)
+    prev_log_dir = prev_config.get("log_dir", "")
+    if prev_log_dir and not Path(prev_log_dir).is_absolute():
+        # log_dir được resolve relative tới styletts2_root (vì train_*.py
+        # chạy với cwd = styletts2_root)
+        prev_log_dir = str(
+            Path(finetune_root).parent / "StyleTTS2" / prev_log_dir
+        )
+    return prev_log_dir
+
+def _prepare_stage2_canonical(
+    config: dict,
+    stage1_ckpt: str,
+    stage2_log_dir: Path,
+    logger: logging.Logger,
+) -> dict:
+    """
+    Kích hoạt PATH A canonical cho Stage 1 → Stage 2:
+    - Copy ckpt Stage 1 vào {stage2_log_dir}/first_stage.pth
+    - Set pretrained_model = "" và second_stage_load_pretrained = false
+      (giúp train_second.py vào nhánh load với ignore_modules + warm-start
+       predictor_encoder = deepcopy(style_encoder))
+    """
+    stage2_log_dir.mkdir(parents=True, exist_ok=True)
+
+    first_stage_filename = config.get("first_stage_path", "first_stage.pth")
+    target_path = stage2_log_dir / first_stage_filename
+
+    src = Path(stage1_ckpt).resolve()
+
+    # Nếu file đích đã tồn tại và trỏ tới cùng inode → skip copy
+    skip_copy = False
+    if target_path.exists():
+        try:
+            if target_path.resolve() == src:
+                skip_copy = True
+            elif target_path.stat().st_size == src.stat().st_size and \
+                 target_path.stat().st_mtime >= src.stat().st_mtime:
+                # Đã có file cùng size + mtime mới hơn → giả định là copy trước đó
+                skip_copy = True
+        except OSError:
+            skip_copy = False
+
+    if skip_copy:
+        logger.info(
+            f"PATH A: {target_path.name} đã tồn tại trong log_dir Stage 2, bỏ qua copy."
+        )
+    else:
+        logger.info(f"PATH A: Copy Stage 1 ckpt → {target_path}")
+        logger.info(f"  Source: {src}")
+        logger.info(f"  (kích thước: {src.stat().st_size / 1e6:.1f} MB)")
+        shutil.copy2(str(src), str(target_path))
+        logger.info("  Copy hoàn tất.")
+
+    # Đảm bảo config bật PATH A trong train_second.py
+    # Logic:
+    #   load_pretrained = (pretrained_model != "") AND (second_stage_load_pretrained == True)
+    #   not load_pretrained AND first_stage_path != "" → PATH A active
+    config["pretrained_model"] = ""
+    config["second_stage_load_pretrained"] = False
+    config["first_stage_path"] = first_stage_filename
+
+    logger.info(
+        "PATH A active: pretrained_model='' + second_stage_load_pretrained=False"
+        f" + first_stage_path='{first_stage_filename}'"
+    )
+    logger.info(
+        "  → train_second.py sẽ load với ignore_modules=[bert, bert_encoder, "
+        "predictor, predictor_encoder, msd, mpd, wd, diffusion]"
+    )
+    logger.info(
+        "  → predictor_encoder sẽ được warm-start = deepcopy(style_encoder)"
+    )
+
+    return config
+
+
+def _detect_stage2_resume(stage2_log_dir: Path, logger: logging.Logger) -> Optional[str]:
+    """
+    Detect xem Stage 2 đã có epoch_2nd_*.pth chưa (RESUME case).
+    Nếu có → trả về path tới file mới nhất, ngược lại None.
+    """
+    if not stage2_log_dir.exists():
+        return None
+
+    epoch_2nd_files = list(stage2_log_dir.glob("epoch_2nd_*.pth"))
+    if not epoch_2nd_files:
+        return None
+
+    # Mới nhất theo mtime
+    latest = sorted(epoch_2nd_files, key=lambda f: f.stat().st_mtime, reverse=True)[0]
+    logger.info(
+        f"Phát hiện Stage 2 đã có {len(epoch_2nd_files)} file epoch_2nd_*.pth"
+    )
+    logger.info(f"  → RESUME từ: {latest.name}")
+    return str(latest.resolve())
+
 
 def auto_chain_checkpoint(
     config_dict: dict,
@@ -229,64 +359,167 @@ def auto_chain_checkpoint(
     logger: logging.Logger,
 ) -> dict:
     """
-    Tự động tìm checkpoint từ giai đoạn trước và điền vào pretrained_model.
+    Tự động xử lý checkpoint chaining giữa các stage.
+
+    Stage 1: Train từ đầu, không cần pretrained.
+
+    Stage 2 (Stage 1 → Stage 2 transition — PATH A canonical):
+        - Tìm ckpt tốt nhất từ Stage 1 log_dir (file epoch_1st_*.pth hoặc
+          first_stage.pth)
+        - Copy file đó vào {Stage 2 log_dir}/first_stage.pth
+        - Set pretrained_model="" + second_stage_load_pretrained=false
+          → train_second.py kích hoạt nhánh canonical với ignore_modules +
+            warm-start predictor_encoder = deepcopy(style_encoder)
+
+    Stage 2 (RESUME — đã có epoch_2nd_*.pth trong log_dir):
+        - PATH B: set pretrained_model = latest epoch_2nd_*.pth +
+          second_stage_load_pretrained=true
+
+    Stage 3 (fine-tune từ Stage 2):
+        - Set pretrained_model = ckpt Stage 2 (load_only_params do config quyết)
+          + second_stage_load_pretrained=true
+        - train_finetune.py có cùng logic load_pretrained như train_second.py
+
+    Override (--pretrained-model): User chỉ định cụ thể → tin user.
     """
     config = copy.deepcopy(config_dict)
 
-    # Nếu user override → dùng ngay
-    if override_pretrained:
-        if not Path(override_pretrained).exists():
-            logger.error(f"Override checkpoint không tồn tại: {override_pretrained}")
-            raise FileNotFoundError(f"Checkpoint not found: {override_pretrained}")
-        config["pretrained_model"] = override_pretrained
-        logger.info(f"Dùng override checkpoint: {override_pretrained}")
-        return config
-
-    # Stage 1: Không cần pretrained (train từ đầu)
+    # =========================================================================
+    # Stage 1: Không cần pretrained
+    # =========================================================================
     if stage == 1:
         config["pretrained_model"] = ""
         logger.info("Stage 1: Train từ đầu (không cần pretrained)")
         return config
 
-    # Stage 2: Tìm checkpoint từ Stage 1
+    # =========================================================================
+    # User override: tin user đang biết mình làm gì → PATH B style
+    # =========================================================================
+    if override_pretrained:
+        if not Path(override_pretrained).exists():
+            logger.error(f"Override checkpoint không tồn tại: {override_pretrained}")
+            raise FileNotFoundError(f"Checkpoint not found: {override_pretrained}")
+        config["pretrained_model"] = str(Path(override_pretrained).resolve())
+        # Khi user truyền pretrained_model thẳng vào, giả định đây là full state
+        # Stage 2/3 → bật second_stage_load_pretrained=true để train_*.py vào
+        # nhánh load full state.
+        config["second_stage_load_pretrained"] = True
+        logger.info(f"Override checkpoint (PATH B): {override_pretrained}")
+        logger.info(
+            "  → second_stage_load_pretrained=True (load full state Stage 2/3)"
+        )
+        return config
+
+    # =========================================================================
+    # Stage 2: Stage 1 → Stage 2 (PATH A) hoặc RESUME Stage 2 (PATH B)
+    # =========================================================================
     if stage == 2:
-        prev_config_path = Path(finetune_root) / "config" / "config_stage1.yaml"
-        if prev_config_path.exists():
-            with open(prev_config_path, "r", encoding="utf-8") as f:
-                prev_config = yaml.safe_load(f)
-            prev_log_dir = prev_config.get("log_dir", "")
-            # Resolve relative to styletts2_root
-            if prev_log_dir and not Path(prev_log_dir).is_absolute():
-                prev_log_dir = str(Path(finetune_root).parent / "StyleTTS2" / prev_log_dir)
-        else:
-            prev_log_dir = ""
+        # 1) Tìm log_dir Stage 2 hiện tại (output của chính Stage 2)
+        stage2_log_dir = config.get("log_dir", "")
+        if stage2_log_dir and not Path(stage2_log_dir).is_absolute():
+            stage2_log_dir = (
+                Path(finetune_root).parent / "StyleTTS2" / stage2_log_dir
+            )
+        stage2_log_dir = Path(stage2_log_dir) if stage2_log_dir else None
 
-    # Stage 3: Tìm checkpoint từ Stage 2
-    elif stage == 3:
-        prev_config_path = Path(finetune_root) / "config" / "config_stage2.yaml"
-        if prev_config_path.exists():
-            with open(prev_config_path, "r", encoding="utf-8") as f:
-                prev_config = yaml.safe_load(f)
-            prev_log_dir = prev_config.get("log_dir", "")
-            if prev_log_dir and not Path(prev_log_dir).is_absolute():
-                prev_log_dir = str(Path(finetune_root).parent / "StyleTTS2" / prev_log_dir)
-        else:
-            prev_log_dir = ""
-    else:
-        prev_log_dir = ""
+        # 2) Detect resume: nếu Stage 2 đã có epoch_2nd_*.pth → PATH B
+        if stage2_log_dir is not None:
+            resume_ckpt = _detect_stage2_resume(stage2_log_dir, logger)
+            if resume_ckpt:
+                config["pretrained_model"] = resume_ckpt
+                config["second_stage_load_pretrained"] = True
+                logger.info(
+                    "Stage 2 RESUME (PATH B): pretrained_model=%s, "
+                    "second_stage_load_pretrained=True"
+                    % resume_ckpt
+                )
+                return config
 
-    # Tìm checkpoint
-    if prev_log_dir:
-        ckpt_path = find_best_checkpoint(prev_log_dir, logger)
-        if ckpt_path:
-            config["pretrained_model"] = ckpt_path
-            logger.info(f"Auto-chain: pretrained_model = {ckpt_path}")
-        else:
-            logger.warning("Không tìm thấy checkpoint từ giai đoạn trước!")
+        # 3) Lần đầu chạy Stage 2 → PATH A: copy ckpt Stage 1 vào log_dir
+        prev_config_path = (
+            Path(finetune_root) / "config" / "config_stage1.yaml"
+        )
+        prev_log_dir = _resolve_log_dir(prev_config_path, finetune_root)
+
+        if not prev_log_dir:
+            logger.warning(
+                "Không xác định được log_dir của Stage 1. "
+                "Hãy chỉ định thủ công bằng --pretrained-model "
+                "(hoặc kiểm tra config_stage1.yaml)"
+            )
+            return config
+
+        # Tìm ckpt tốt nhất từ Stage 1 (chỉ epoch_1st_*.pth hoặc first_stage.pth)
+        # Thử epoch_1st_ trước, nếu không có thì lấy first_stage.pth
+        stage1_ckpt = find_best_checkpoint(
+            prev_log_dir, logger, prefix_filter="epoch_1st_"
+        )
+        if not stage1_ckpt:
+            # Fallback: tìm first_stage.pth (file lưu cuối Stage 1)
+            stage1_ckpt = find_best_checkpoint(
+                prev_log_dir, logger, prefix_filter="first_stage"
+            )
+
+        if not stage1_ckpt:
+            logger.warning(
+                "Không tìm thấy checkpoint Stage 1! Hãy kiểm tra log_dir Stage 1: "
+                f"{prev_log_dir}"
+            )
+            logger.warning("Hoặc chỉ định thủ công bằng --pretrained-model")
+            return config
+
+        if stage2_log_dir is None:
+            logger.error(
+                "Không xác định được log_dir Stage 2 từ config — không thể "
+                "copy ckpt Stage 1 vào!"
+            )
+            return config
+
+        # Copy file + set config theo PATH A
+        config = _prepare_stage2_canonical(
+            config, stage1_ckpt, stage2_log_dir, logger
+        )
+        return config
+
+    # =========================================================================
+    # Stage 3: Fine-tune từ Stage 2 (luôn dùng PATH B với load_only_params=true)
+    # =========================================================================
+    if stage == 3:
+        prev_config_path = (
+            Path(finetune_root) / "config" / "config_stage2.yaml"
+        )
+        prev_log_dir = _resolve_log_dir(prev_config_path, finetune_root)
+
+        if not prev_log_dir:
+            logger.warning(
+                "Không xác định được log_dir của Stage 2. "
+                "Hãy chỉ định thủ công bằng --pretrained-model"
+            )
+            return config
+
+        # Tìm ckpt tốt nhất Stage 2 (epoch_2nd_*.pth)
+        stage2_ckpt = find_best_checkpoint(
+            prev_log_dir, logger, prefix_filter="epoch_2nd_"
+        )
+        if not stage2_ckpt:
+            logger.warning(
+                "Không tìm thấy epoch_2nd_*.pth trong log_dir Stage 2: "
+                f"{prev_log_dir}"
+            )
             logger.warning("Hãy chỉ định thủ công bằng --pretrained-model")
-    else:
-        logger.warning(f"Không xác định được log_dir của giai đoạn trước (stage {stage - 1})")
+            return config
 
+        config["pretrained_model"] = stage2_ckpt
+        config["second_stage_load_pretrained"] = True
+        logger.info(f"Stage 3 fine-tune từ Stage 2 ckpt: {stage2_ckpt}")
+        logger.info(
+            f"  load_only_params = {config.get('load_only_params', True)} "
+            "(theo config_stage3.yaml — true để reset optimizer)"
+        )
+        return config
+
+    # Stage không hợp lệ
+    logger.warning(f"Stage {stage} không hợp lệ cho auto-chain.")
     return config
 
 # CORE: PREPARE & RUN
@@ -416,6 +649,21 @@ def run_training(
         "--config_path", str(processed_config_path.resolve()),
     ]
 
+    # Chuẩn bị env cho subprocess.
+    # KEY: Inject STYLETTS2_VOCAB_PATH để meldataset.py (TextCleaner) tìm được
+    # phoneme_vocab.json không phụ thuộc OS / hard-coded path.
+    sub_env = os.environ.copy()
+    if wrapper_config.vocab_file:
+        vocab_abs = str(Path(wrapper_config.vocab_file).resolve())
+        sub_env["STYLETTS2_VOCAB_PATH"] = vocab_abs
+        logger.info(f"  Env STYLETTS2_VOCAB_PATH = {vocab_abs}")
+    else:
+        logger.warning(
+            "vocab_file chưa được set — subprocess sẽ phải dùng fallback path. "
+            "Truyền --vocab-file hoặc set env STYLETTS2_VOCAB_PATH thủ công nếu "
+            "training báo FileNotFoundError."
+        )
+
     logger.info("")
     logger.info("=" * 60)
     logger.info(f"  CHẠY: {stage_info['description']}")
@@ -439,6 +687,7 @@ def run_training(
         process = subprocess.Popen(
             cmd,
             cwd=str(styletts2_root),
+            env=sub_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -620,7 +869,7 @@ def main():
     # vocab_file = tìm trong data_pipeline output
     if not wrapper_config.vocab_file:
         candidates = [
-            Path(wrapper_config.finetune_root) / "data_pipeline" / "prepare_vicoice" / "output" / "phoneme_vocab.json",
+            Path(wrapper_config.finetune_root) / "data_pipeline" / "prepare_vivoice" / "output" / "phoneme_vocab.json",
             Path(wrapper_config.finetune_root) / "output" / "phoneme_vocab.json",
         ]
         for c in candidates:

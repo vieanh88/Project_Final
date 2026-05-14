@@ -34,13 +34,3 @@ python train_wrapper.py --stage 2 \
 **Pre-flight checks** trước mỗi lần chạy: kiểm tra CUDA, GPU VRAM, script gốc tồn tại, config template tồn tại, vocab file tồn tại, data files tồn tại. Nếu có lỗi → dừng ngay, không lãng phí thời gian.
 
 **Auto-infer paths:** Nếu không chỉ định, wrapper tự suy `styletts2_root = ../StyleTTS2`, `finetune_root = thư mục chứa train_wrapper.py`, `vocab_file` tìm trong `data_pipeline/prepare_vicoice/output/`.
-
----
-
-**Nhóm D hoàn tất!** Tiến độ:
-
-| Nhóm | Status |
-|------|--------|
-| A-C: Data Pipeline + PL-BERT (11 files) | ✅ Done |
-| D: Training configs + wrapper (4 files) | ✅ Done |
-| E: Inference (3 files) | ⏳ Tiếp theo |

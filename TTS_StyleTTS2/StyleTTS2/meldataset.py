@@ -203,7 +203,7 @@ class FilePathDataset(torch.utils.data.Dataset):
         # return speaker_id, acoustic_feature, text_tensor, ref_text, ref_mel_tensor, ref_label, path, wave
 
         # CODE MỚI SO VỚI REPO GỐC
-        # SỬA LỖI: Không sử dụng OOD text ở Stage
+        # SỬA LỖI: Không sử dụng OOD text ở Stage 1
         # get OOD text
         if len(self.ptexts) > 0:
             ps = ""

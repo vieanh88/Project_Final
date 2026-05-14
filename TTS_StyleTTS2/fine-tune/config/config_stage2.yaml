@@ -13,21 +13,35 @@
 
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseExpressive"
-save_freq: 10                           # Lưu checkpoint mỗi 10 epochs
-log_interval: 50                        # Log mỗi 50 steps
+save_freq: 2                            # Lưu checkpoint mỗi 2 epochs
+log_interval: 20                        # Log mỗi 20 steps
 device: "cuda"
 
 # --- Training Schedule ---
 epochs_1st: 0                           # Không dùng (đã qua Stage 1)
-epochs_2nd: 50                          # Số epochs cho Stage 2
+epochs_2nd: 30                          # Số epochs cho Stage 2
 batch_size: 6                           # *** GIẢM MẠNH: JAT + WavLM rất tốn VRAM ***
                                         # Thử 6 nếu VRAM 24GB đủ, giảm 4 nếu OOM
 max_len: 400
 
 # --- Checkpoint Loading ---
-# train_wrapper.py sẽ tự động điền đường dẫn checkpoint tốt nhất từ Stage 1
-pretrained_model: ""                    # ← AUTO-FILLED by train_wrapper.py
-second_stage_load_pretrained: true      # Load toàn bộ state (weights + optimizer)
+# *** PATH A CANONICAL (Stage 1 → Stage 2 transition) ***
+# Logic train_second.py:
+#   if pretrained_model == "" OR second_stage_load_pretrained == false:
+#       → load `os.path.join(log_dir, first_stage_path)` với ignore_modules=
+#         [bert, bert_encoder, predictor, predictor_encoder, msd, mpd, wd, diffusion]
+#       → model.predictor_encoder = deepcopy(model.style_encoder)  ← warm-start!
+#
+# train_wrapper.py SẼ TỰ ĐỘNG copy ckpt tốt nhất từ Stage 1 vào
+#   {log_dir}/first_stage.pth   (tên trùng với first_stage_path bên dưới)
+# trước khi gọi train_second.py.
+#
+# LƯU Ý: Nếu RESUME Stage 2 (đã train được vài epoch), wrapper tự
+# detect file epoch_2nd_*.pth trong log_dir → chuyển sang PATH B
+# (override pretrained_model + second_stage_load_pretrained=true).
+pretrained_model: ""                    # PATH A: để trống
+first_stage_path: "first_stage.pth"     # tên file (relative to log_dir)
+second_stage_load_pretrained: false     # PATH A: false để vào nhánh canonical
 load_only_params: false
 
 # --- Pre-trained Components ---
@@ -40,7 +54,7 @@ PLBERT_dir: "plbert_v2/checkpoints/"       # ← PL-BERT tiếng Việt
 data_params:
   train_data: "data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
   val_data: "data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
-  root_path: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/"  # Thêm root_path để sửa lỗi đọc file
+  root_path: "D:/Documents/HUST/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"  # Thêm root_path để sửa lỗi đọc file
   OOD_data: "data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"                                 # ← 50k câu truyện ma
   min_length: 50
 
@@ -120,9 +134,9 @@ loss_params:
   lambda_sty: 1.0
   lambda_diff: 1.0
 
-  # *** CHIẾN LƯỢC BẬT JAT NGAY ***
-  diff_epoch: 0               # Style diffusion: BẬT từ epoch 0
-  joint_epoch: 0              # Joint training:  BẬT từ epoch 0
+  # TRÁNH OVERFITTING SỚM: BẬT LẦN LƯỢT (diffusion sau, joint training sau)
+  diff_epoch: 5                # Style diffusion: BẬT từ epoch 5 (cho model ổn định trước)
+  joint_epoch: 10              # Joint training:  BẬT từ epoch 10 (cho diffusion có thời gian học trước)
 
 # --- Optimizer ---
 optimizer_params:

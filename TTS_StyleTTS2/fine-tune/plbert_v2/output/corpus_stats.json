@@ -1,0 +1,18 @@
+{
+  "corpus_file": "D:\\HUST_Project\\Project_Final\\TTS_StyleTTS2\\fine-tune\\plbert_v2\\output\\all_corpus_phoneme.txt",
+  "total_lines": 934271,
+  "total_characters": 126800694,
+  "unique_characters": 144,
+  "avg_length": 135.72153475811623,
+  "min_length": 5,
+  "max_length": 1054,
+  "source_breakdown": {
+    "vivoice_train_list.txt": 843383,
+    "vivoice_val_list.txt": 44389,
+    "ngan_train_list.txt": 2168,
+    "ngan_val_list.txt": 114,
+    "OOD_texts_phoneme.txt": 68061
+  },
+  "deduplication": true,
+  "shuffled": true
+}
