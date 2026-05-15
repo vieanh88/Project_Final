@@ -5,7 +5,7 @@
 #  ĐƯỜNG DẪN DỰ ÁN
 paths:
   # Thư mục gốc dự án (tất cả đường dẫn tương đối sẽ dựa trên thư mục này)
-  project_root: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"
+  project_root: "D:/Documents/HUST/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"
 
   # Thư mục làm việc trung gian (cache parquet, log, temp files)
   work_dir: "./workdir"
@@ -14,10 +14,10 @@ paths:
   output_dir: "./output"
 
   # Đường dẫn tuyệt đối đến step08_phonemize.py (module G2P đã fix bug)
-  phonemize_script: "D:/HUST_Project/Project_Final/data/StyleTTS2_preprocess/step08_phonemize.py"
+  phonemize_script: "D:/Documents/HUST/HUST_Project/Project_Final/data/StyleTTS2_preprocess/step08_phonemize.py"
 
   # Đường dẫn tuyệt đối đến repo StyleTTS2 gốc
-  styletts2_root: "D:/HUST_Project/Project_Final/TTS_StyleTTS2/StyleTTS2"j
+  styletts2_root: "D:/Documents/HUST/HUST_Project/Project_Final/TTS_StyleTTS2/StyleTTS2"
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  BƯỚC 1: DOWNLOAD — Tải dataset ViVoice từ Hugging Face
@@ -119,10 +119,12 @@ step5_filelist:
 # ─────────────────────────────────────────────────────────────────────────────
 #  BƯỚC 6: REBUILD FILELIST — Tạo lại filelist sau khi đã có phoneme và vocab, mapping speaker_id bổ sung cho multispeker
 # ─────────────────────────────────────────────────────────────────────────────
-  step6_rebuild:
+step6_rebuild:
   channel_column: "channel"
-  min_samples_per_speaker: 20
+  min_samples_per_speaker: 1000
   # Các tham số khác tự động thừa kế từ step5_filelist (train_ratio, seed, ...)
   min_phoneme_length: 3
   max_phoneme_length: 5000
   verify_wav_exists: true
+  drop_below_threshold: false
+  cap_per_speaker: 0

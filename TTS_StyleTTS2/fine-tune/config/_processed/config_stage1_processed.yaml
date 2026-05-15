@@ -28,7 +28,7 @@ loss_params:
   lambda_mel: 5.0
   lambda_mono: 1.0
   lambda_norm: 1.0
-  lambda_s2s: 1.0
+  lambda_s2s: 0.5
   lambda_slm: 1.0
   lambda_sty: 1.0
 max_len: 400

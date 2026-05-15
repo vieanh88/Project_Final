@@ -351,6 +351,61 @@ def _detect_stage2_resume(stage2_log_dir: Path, logger: logging.Logger) -> Optio
     return str(latest.resolve())
 
 
+def _detect_stage1_resume(stage1_log_dir: Path, logger: logging.Logger) -> Optional[str]:
+    """
+    Detect xem Stage 1 đã có checkpoint chưa (RESUME case).
+
+    Quan trọng: train_first.py của StyleTTS2 gốc đã hỗ trợ resume — chỉ cần
+    `pretrained_model = <path>` + `load_only_params = false` thì code gốc sẽ:
+      - Load model weights + optimizer state + start_epoch + iters
+      - Training tiếp tục từ epoch_X+1 thay vì 0
+
+    Ưu tiên file checkpoint theo thứ tự:
+      1. epoch_1st_*.pth mới nhất (theo mtime) — resume từ giữa Stage 1
+      2. first_stage.pth (fallback) — nếu Stage 1 đã train xong và muốn re-run
+         (LƯU Ý: first_stage.pth chỉ chứa model weights, KHÔNG có optimizer
+          state → khi load với load_only_params=false, optimizer sẽ random init)
+
+    Returns:
+        Path tới ckpt mới nhất (absolute), hoặc None nếu chưa có ckpt.
+    """
+    if not stage1_log_dir.exists():
+        return None
+
+    # Ưu tiên 1: epoch_1st_*.pth (có optimizer state, resume chính xác)
+    epoch_1st_files = list(stage1_log_dir.glob("epoch_1st_*.pth"))
+    if epoch_1st_files:
+        latest = sorted(epoch_1st_files, key=lambda f: f.stat().st_mtime, reverse=True)[0]
+        logger.info(
+            f"Phát hiện Stage 1 đã có {len(epoch_1st_files)} file epoch_1st_*.pth"
+        )
+        logger.info(f"  → RESUME Stage 1 từ: {latest.name}")
+        logger.info(
+            "  → Sẽ load cả optimizer + start_epoch + iters (training tiếp tục đúng chỗ)"
+        )
+        return str(latest.resolve())
+
+    # Ưu tiên 2: first_stage.pth (chỉ có model weights, KHÔNG có optimizer)
+    first_stage = stage1_log_dir / "first_stage.pth"
+    if first_stage.exists():
+        logger.info(
+            f"Phát hiện first_stage.pth trong {stage1_log_dir.name} "
+            f"(Stage 1 đã train xong trước đó)"
+        )
+        logger.info(
+            "  ⚠ first_stage.pth chỉ chứa model weights, KHÔNG có optimizer state"
+        )
+        logger.info(
+            "  → Nếu muốn re-train Stage 1, hãy XÓA file này để train từ đầu"
+        )
+        logger.info(
+            "  → Hoặc dùng --pretrained-model để chỉ định ckpt cụ thể có optimizer"
+        )
+        return str(first_stage.resolve())
+
+    return None
+
+
 def auto_chain_checkpoint(
     config_dict: dict,
     stage: int,
@@ -361,7 +416,11 @@ def auto_chain_checkpoint(
     """
     Tự động xử lý checkpoint chaining giữa các stage.
 
-    Stage 1: Train từ đầu, không cần pretrained.
+    Stage 1 (lần đầu): Train từ đầu, pretrained_model="".
+    Stage 1 (RESUME — đã có epoch_1st_*.pth trong log_dir):
+        - Set pretrained_model = latest epoch_1st_*.pth
+        - load_only_params = false (để load cả optimizer + start_epoch + iters)
+        - train_first.py của repo gốc sẽ tự resume training đúng chỗ
 
     Stage 2 (Stage 1 → Stage 2 transition — PATH A canonical):
         - Tìm ckpt tốt nhất từ Stage 1 log_dir (file epoch_1st_*.pth hoặc
@@ -380,34 +439,89 @@ def auto_chain_checkpoint(
           + second_stage_load_pretrained=true
         - train_finetune.py có cùng logic load_pretrained như train_second.py
 
-    Override (--pretrained-model): User chỉ định cụ thể → tin user.
+    Override (--pretrained-model): User chỉ định cụ thể → tin user (áp dụng
+    cho mọi stage, bao gồm Stage 1).
     """
     config = copy.deepcopy(config_dict)
 
     # =========================================================================
-    # Stage 1: Không cần pretrained
-    # =========================================================================
-    if stage == 1:
-        config["pretrained_model"] = ""
-        logger.info("Stage 1: Train từ đầu (không cần pretrained)")
-        return config
-
-    # =========================================================================
-    # User override: tin user đang biết mình làm gì → PATH B style
+    # User override: áp dụng TRƯỚC, cho mọi stage (kể cả Stage 1)
+    # Lý do dời lên đầu: user có thể muốn warm-start Stage 1 từ một ckpt cụ thể
+    # (ví dụ: training fail giữa chừng, muốn resume từ epoch_1st_00015.pth cụ thể
+    # thay vì latest mà wrapper tự pick).
     # =========================================================================
     if override_pretrained:
         if not Path(override_pretrained).exists():
             logger.error(f"Override checkpoint không tồn tại: {override_pretrained}")
             raise FileNotFoundError(f"Checkpoint not found: {override_pretrained}")
         config["pretrained_model"] = str(Path(override_pretrained).resolve())
-        # Khi user truyền pretrained_model thẳng vào, giả định đây là full state
-        # Stage 2/3 → bật second_stage_load_pretrained=true để train_*.py vào
-        # nhánh load full state.
-        config["second_stage_load_pretrained"] = True
-        logger.info(f"Override checkpoint (PATH B): {override_pretrained}")
-        logger.info(
-            "  → second_stage_load_pretrained=True (load full state Stage 2/3)"
-        )
+
+        if stage == 1:
+            # Stage 1: chỉ cần pretrained_model + load_only_params=false (default).
+            # KHÔNG có second_stage_load_pretrained (chỉ Stage 2/3 dùng).
+            # Đảm bảo load_only_params=false để resume cả optimizer state.
+            config.setdefault("load_only_params", False)
+            logger.info(f"Override checkpoint (Stage 1): {override_pretrained}")
+            logger.info(
+                f"  → load_only_params={config['load_only_params']} "
+                "(false = resume cả optimizer + start_epoch)"
+            )
+        else:
+            # Stage 2/3: bật second_stage_load_pretrained=true (full state load)
+            config["second_stage_load_pretrained"] = True
+            logger.info(f"Override checkpoint (PATH B, Stage {stage}): {override_pretrained}")
+            logger.info(
+                "  → second_stage_load_pretrained=True (load full state Stage 2/3)"
+            )
+        return config
+
+    # =========================================================================
+    # Stage 1: Lần đầu (train từ đầu) HOẶC RESUME (đã có epoch_1st_*.pth)
+    # =========================================================================
+    if stage == 1:
+        # Tìm log_dir Stage 1 (output của chính Stage 1)
+        stage1_log_dir_str = config.get("log_dir", "")
+        if stage1_log_dir_str and not Path(stage1_log_dir_str).is_absolute():
+            stage1_log_dir = (
+                Path(finetune_root).parent / "StyleTTS2" / stage1_log_dir_str
+            )
+        elif stage1_log_dir_str:
+            stage1_log_dir = Path(stage1_log_dir_str)
+        else:
+            stage1_log_dir = None
+
+        # Detect resume: nếu Stage 1 đã có epoch_1st_*.pth → RESUME
+        if stage1_log_dir is not None:
+            resume_ckpt = _detect_stage1_resume(stage1_log_dir, logger)
+            if resume_ckpt:
+                config["pretrained_model"] = resume_ckpt
+                # load_only_params=false để load cả optimizer + epoch + iters
+                # (train_first.py code gốc sẽ tự skip nếu đã train xong epochs_1st)
+                config["load_only_params"] = False
+
+                # Warning nếu epochs_1st có thể đã đạt
+                # (không có cách verify chính xác mà không load ckpt; chỉ cảnh báo)
+                epochs_target = config.get("epochs_1st", 0)
+                # Trích epoch number từ filename (epoch_1st_00012.pth → 12)
+                m = re.search(r"epoch_1st_(\d+)", Path(resume_ckpt).name)
+                if m and epochs_target > 0:
+                    resume_epoch = int(m.group(1))
+                    if resume_epoch >= epochs_target - 1:
+                        logger.warning(
+                            f"  ⚠ Checkpoint là epoch {resume_epoch} nhưng config "
+                            f"epochs_1st={epochs_target} → có thể đã train xong! "
+                            "Tăng epochs_1st trong config nếu muốn train thêm."
+                        )
+
+                logger.info(
+                    f"Stage 1 RESUME: pretrained_model={Path(resume_ckpt).name}, "
+                    "load_only_params=False"
+                )
+                return config
+
+        # Không có checkpoint → train từ đầu
+        config["pretrained_model"] = ""
+        logger.info("Stage 1: Train từ đầu (không tìm thấy checkpoint nào trong log_dir)")
         return config
 
     # =========================================================================

@@ -11,6 +11,7 @@
 | A4 | `prepare_vivoice/step4_build_vocab.py` | Quét toàn bộ phoneme → `phoneme_vocab.json` + `n_token` |
 | A5 | `prepare_vivoice/step5_make_filelist.py` | Gộp wav + phoneme + speaker_id → train/val filelist |
 | M1 | `prepare_vivoice/step6_rebuild_multispeaker` | Mapping channel ↔ speaker_id + stats |
+| M2 | `prepare_vivoice/step6b_apply_filters` | Lọc speaker_id trực tiếp từ folder clean_wavs thay vì hf_cache |
 
 **B. Data Preparation — Ngạn & OOD (3 scripts)**
 

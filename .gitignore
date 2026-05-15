@@ -42,3 +42,4 @@ ood.txt
 OOD_texts.txt
 ood_cleaned_texts.txt
 wav_paths.txt
+TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/*.txt

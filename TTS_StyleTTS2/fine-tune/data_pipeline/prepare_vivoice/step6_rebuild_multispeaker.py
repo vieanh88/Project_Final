@@ -97,7 +97,28 @@ class RebuildConfig:
     channel_column: str = "channel"
 
     # Threshold: channels < min_samples → gộp vào OTHER_SPEAKER_ID
+    # (HOẶC drop hẳn nếu drop_below_threshold=True, xem dưới)
     min_samples_per_speaker: int = 20
+
+    # Nếu True: DROP HẲN tất cả records của speakers < min_samples
+    #   (KHÔNG gộp vào OTHER_SPEAKER_ID nữa)
+    # Nếu False (default, giữ behavior cũ): gộp vào OTHER_SPEAKER_ID=999
+    #
+    # Use case "drop": train data sạch hơn, giảm dung lượng wav cần upload
+    #   (vì wav của speakers bị drop sẽ KHÔNG xuất hiện trong filelist
+    #    → có thể delete khỏi disk hoặc skip upload lên Vast.ai).
+    drop_below_threshold: bool = False
+
+    # Nếu > 0: CAP mỗi speaker ở tối đa N records (random sample với seed cố định)
+    #   (chỉ áp dụng cho TRAIN records, KHÔNG áp dụng val)
+    # Nếu = 0 (default): không cap, giữ nguyên phân phối tự nhiên
+    #
+    # Use case: dataset bị skewed (2-3 speakers chiếm 20-30% data) → cap để
+    #   tránh model bias về những speakers đó + tiết kiệm dung lượng đáng kể.
+    #
+    # Ví dụ: cap_per_speaker=20000 → @VoizFM (99k records) chỉ giữ 20k
+    #   → tiết kiệm ~80k records ≈ ~16 GB wav files.
+    cap_per_speaker: int = 0
 
     # Train/Val split
     train_ratio: float = 0.95
@@ -144,6 +165,8 @@ class RebuildConfig:
             phoneme_text_file=step3.get("phoneme_text_file", cls.phoneme_text_file),
             channel_column=step6.get("channel_column", cls.channel_column),
             min_samples_per_speaker=step6.get("min_samples_per_speaker", cls.min_samples_per_speaker),
+            drop_below_threshold=step6.get("drop_below_threshold", cls.drop_below_threshold),
+            cap_per_speaker=step6.get("cap_per_speaker", cls.cap_per_speaker),
             train_ratio=step6.get("train_ratio", step5.get("train_ratio", cls.train_ratio)),
             random_seed=step6.get("random_seed", step5.get("random_seed", cls.random_seed)),
             train_list=step6.get("train_list", step5.get("train_list", cls.train_list)),
@@ -388,7 +411,8 @@ def assemble_records(
         "too_short": 0,
         "too_long": 0,
         "wav_missing": 0,
-        "speaker_other": 0,  # Đếm số record rơi vào OTHER
+        "speaker_other": 0,           # Đếm số record THUỘC NHÓM OTHER (cả 2 mode)
+        "dropped_below_threshold": 0, # Đếm số record bị DROP HẲN (mode drop=True)
     }
 
     # Bucket để log phân bố speaker_id
@@ -424,8 +448,14 @@ def assemble_records(
 
         # Lookup speaker_id
         speaker_id = speaker_map.get(channel, OTHER_SPEAKER_ID)
+
         if speaker_id == OTHER_SPEAKER_ID:
             stats["speaker_other"] += 1
+
+            # *** NEW: DROP HẲN nếu drop_below_threshold=True ***
+            if config.drop_below_threshold:
+                stats["dropped_below_threshold"] += 1
+                continue  # KHÔNG ghi record này vào filelist
 
         speaker_record_counts[speaker_id] = speaker_record_counts.get(speaker_id, 0) + 1
 
@@ -436,14 +466,20 @@ def assemble_records(
     # Log stats
     logger.info(f"")
     logger.info(f"Ghép records:")
-    logger.info(f"  Tổng            : {stats['total']:,}")
-    logger.info(f"  Hợp lệ          : {stats['valid']:,}")
-    logger.info(f"  Phoneme failed  : {stats['failed_phoneme']:,}")
-    logger.info(f"  Phoneme rỗng    : {stats['empty_phoneme']:,}")
-    logger.info(f"  Phoneme quá ngắn: {stats['too_short']:,}")
-    logger.info(f"  Phoneme quá dài : {stats['too_long']:,}")
-    logger.info(f"  Wav không tồn tại: {stats['wav_missing']:,}")
-    logger.info(f"  Rơi vào OTHER   : {stats['speaker_other']:,}")
+    logger.info(f"  Tổng input          : {stats['total']:,}")
+    logger.info(f"  Hợp lệ (kept)       : {stats['valid']:,}")
+    logger.info(f"  Phoneme failed      : {stats['failed_phoneme']:,}")
+    logger.info(f"  Phoneme rỗng        : {stats['empty_phoneme']:,}")
+    logger.info(f"  Phoneme quá ngắn    : {stats['too_short']:,}")
+    logger.info(f"  Phoneme quá dài     : {stats['too_long']:,}")
+    logger.info(f"  Wav không tồn tại   : {stats['wav_missing']:,}")
+    logger.info(f"  Thuộc nhóm OTHER    : {stats['speaker_other']:,}")
+    if config.drop_below_threshold:
+        logger.info(f"  → DROPPED (other)   : {stats['dropped_below_threshold']:,}  "
+                    f"(do drop_below_threshold=True)")
+    else:
+        logger.info(f"  → Gộp vào id={OTHER_SPEAKER_ID}      : {stats['speaker_other']:,}  "
+                    f"(drop_below_threshold=False)")
 
     # Log phân bố speaker_id (top 10 + OTHER)
     logger.info(f"")
@@ -463,6 +499,110 @@ def assemble_records(
                     f"(tổng {rest:,} records)")
 
     return valid_records, speaker_record_counts
+
+
+# =============================================================================
+# CORE: CAP RECORDS PER SPEAKER (balanced subsampling)
+# =============================================================================
+
+def cap_records_per_speaker(
+    records: List[str],
+    cap: int,
+    delimiter: str,
+    seed: int,
+    logger: logging.Logger,
+) -> tuple:
+    """
+    Cap mỗi speaker ở tối đa `cap` records bằng random sampling.
+
+    Mục đích: tránh model bị bias về các speakers chiếm % data lớn.
+    Ví dụ: @VoizFM 99k records + @FonosVietnam 99k records (22.5% data).
+    Cap = 20000 → mỗi speaker ≤ 20k records → phân phối đều hơn.
+
+    Args:
+        records: list các dòng "wav_path|phoneme|speaker_id"
+        cap: ngưỡng tối đa records/speaker (> 0 mới active)
+        delimiter: '|'
+        seed: random seed (tách biệt với shuffle seed của train/val split)
+        logger: logger
+
+    Returns:
+        (capped_records, new_speaker_counts) — list records đã cap, và dict
+        speaker_id -> count mới.
+    """
+    if cap <= 0:
+        # Không cap, return nguyên xi
+        logger.info("Cap per speaker = 0 → bỏ qua bước cap (giữ nguyên phân phối).")
+        # Tính lại count để return cho consistent
+        counts = {}
+        for r in records:
+            parts = r.rsplit(delimiter, 1)
+            if len(parts) == 2:
+                try:
+                    sid = int(parts[1])
+                    counts[sid] = counts.get(sid, 0) + 1
+                except ValueError:
+                    pass
+        return records, counts
+
+    # Group records theo speaker_id
+    grouped: Dict[int, List[str]] = {}
+    for r in records:
+        # speaker_id luôn là phần cuối, sau delimiter cuối
+        parts = r.rsplit(delimiter, 1)
+        if len(parts) != 2:
+            logger.warning(f"Bỏ qua record format sai: {r[:80]}...")
+            continue
+        try:
+            sid = int(parts[1])
+        except ValueError:
+            logger.warning(f"Bỏ qua record có speaker_id không phải int: {r[:80]}...")
+            continue
+        grouped.setdefault(sid, []).append(r)
+
+    # Random sample mỗi nhóm
+    rng = random.Random(seed)
+    capped_records = []
+    new_counts: Dict[int, int] = {}
+    capped_speakers: List[tuple] = []  # (speaker_id, before, after)
+
+    for sid in sorted(grouped.keys()):
+        speaker_records = grouped[sid]
+        before = len(speaker_records)
+
+        if before <= cap:
+            # Không cần cap
+            capped_records.extend(speaker_records)
+            new_counts[sid] = before
+        else:
+            # Random sample đúng `cap` records
+            # Dùng rng.sample để đảm bảo reproducible
+            sampled = rng.sample(speaker_records, cap)
+            capped_records.extend(sampled)
+            new_counts[sid] = cap
+            capped_speakers.append((sid, before, cap))
+
+    # Log chi tiết
+    total_before = sum(len(v) for v in grouped.values())
+    total_after = len(capped_records)
+    saved = total_before - total_after
+
+    logger.info(f"")
+    logger.info(f"Cap per speaker = {cap:,}:")
+    logger.info(f"  Records trước cap    : {total_before:,}")
+    logger.info(f"  Records sau cap      : {total_after:,}")
+    logger.info(f"  Tiết kiệm            : {saved:,} records "
+                f"({saved / total_before * 100:.1f}%)")
+    logger.info(f"  Speakers bị cap      : {len(capped_speakers)}")
+
+    if capped_speakers:
+        logger.info(f"")
+        logger.info(f"  Chi tiết speakers bị cap:")
+        for sid, before, after in capped_speakers:
+            logger.info(f"    speaker_id={sid:4d}: {before:>8,} → {after:>8,}  "
+                        f"(bỏ {before - after:,})")
+
+    return capped_records, new_counts
 
 
 # =============================================================================
@@ -533,6 +673,8 @@ def save_outputs(
         "_metadata": {
             "description": "Mapping channel ↔ speaker_id cho ViVoice multispeaker training",
             "min_samples_per_speaker": config.min_samples_per_speaker,
+            "drop_below_threshold": config.drop_below_threshold,
+            "cap_per_speaker": config.cap_per_speaker,
             "reserved_ids": {
                 "ngan": NGAN_SPEAKER_ID,
                 "other": OTHER_SPEAKER_ID,
@@ -621,6 +763,21 @@ def rebuild_multispeaker(config: RebuildConfig, logger: logging.Logger):
         logger.error("Không có record hợp lệ! Kiểm tra lại dữ liệu.")
         return
 
+    # 4.5. Cap per speaker (NEW — balanced subsampling)
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("  Bước 6.4.5: Cap records per speaker (balanced subsampling)")
+    logger.info("=" * 60)
+    # Dùng seed khác với train/val split để 2 phép random độc lập
+    cap_seed = config.random_seed + 1
+    valid_records, speaker_record_counts = cap_records_per_speaker(
+        valid_records,
+        config.cap_per_speaker,
+        config.delimiter,
+        cap_seed,
+        logger,
+    )
+
     # 5. Shuffle & split
     logger.info("")
     logger.info("=" * 60)
@@ -685,7 +842,27 @@ def main():
         "--min-samples",
         type=int,
         default=None,
-        help="Override threshold (channels < N samples → speaker_id=OTHER)",
+        help="Override threshold (channels < N samples → speaker_id=OTHER, hoặc bị DROP)",
+    )
+    parser.add_argument(
+        "--drop-below-threshold",
+        action="store_true",
+        help=(
+            "DROP HẲN tất cả records của speakers < min_samples "
+            "(thay vì gộp vào speaker_id=999). Khuyến nghị BẬT khi muốn "
+            "filelist sạch + tiết kiệm dung lượng upload data."
+        ),
+    )
+    parser.add_argument(
+        "--cap-per-speaker",
+        type=int,
+        default=None,
+        help=(
+            "Cap mỗi speaker ở tối đa N records bằng random sampling. "
+            "Mục đích: tránh model bias về 2-3 speakers chiếm % data lớn. "
+            "Ví dụ --cap-per-speaker 20000 → giảm @VoizFM 99k → 20k. "
+            "Default 0 = không cap."
+        ),
     )
     parser.add_argument(
         "--no-verify-wav",
@@ -722,6 +899,10 @@ def main():
     # Override từ CLI
     if args.min_samples is not None:
         config.min_samples_per_speaker = args.min_samples
+    if args.drop_below_threshold:
+        config.drop_below_threshold = True
+    if args.cap_per_speaker is not None:
+        config.cap_per_speaker = args.cap_per_speaker
     if args.no_verify_wav:
         config.verify_wav_exists = False
     if args.force:
@@ -740,6 +921,10 @@ def main():
     logger.info(f"Cache dir            : {Path(config.work_dir) / config.cache_subdir}")
     logger.info(f"Channel column       : {config.channel_column}")
     logger.info(f"Min samples/speaker  : {config.min_samples_per_speaker}")
+    logger.info(f"Drop below threshold : {config.drop_below_threshold}  "
+                f"({'DROP HẲN' if config.drop_below_threshold else f'gộp vào id={OTHER_SPEAKER_ID}'})")
+    logger.info(f"Cap per speaker      : {config.cap_per_speaker:,}  "
+                f"({'ACTIVE' if config.cap_per_speaker > 0 else 'không cap'})")
     logger.info(f"Train ratio          : {config.train_ratio:.0%}")
     logger.info(f"Random seed          : {config.random_seed}")
     logger.info(f"Verify wav exists    : {config.verify_wav_exists}")

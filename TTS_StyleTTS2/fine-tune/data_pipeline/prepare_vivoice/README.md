@@ -135,3 +135,101 @@ step3_phonemize.py      → Text → IPA phoneme
 step4_build_vocab.py    → Quét phoneme → phoneme_vocab.json (n_token)
 step5_make_filelist.py  → Ghép wav|phoneme|speaker_id → train/val list
 ```
+
+# **M1: `step6_rebuild_multispeaker.py`**.
+
+**Vị trí:** `TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vicoice/step6_rebuild_multispeaker.py`
+
+**Thêm section vào `prepare_vicoice/config.yaml`:**
+```yaml
+step6_rebuild:
+  channel_column: "channel"
+  min_samples_per_speaker: 20
+  # Các tham số khác tự động thừa kế từ step5_filelist (train_ratio, seed, ...)
+  min_phoneme_length: 3
+  max_phoneme_length: 5000
+  verify_wav_exists: true
+```
+
+**Chạy:**
+```bash
+cd D:\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\data_pipeline\prepare_vicoice
+python step6_rebuild_multispeaker.py --config config.yaml --force
+```
+
+Flag `--force` cần có vì `vivoice_train_list.txt` / `vivoice_val_list.txt` đã tồn tại từ step5 cũ, script sẽ overwrite chúng.
+
+**Quy trình 6 sub-steps (script tự chạy tuần tự):**
+
+**6.1 Extract channels** — Load ViVoice từ HF cache, dùng `.select_columns(["channel"])` để chỉ đọc cột channel mà không decode audio bytes — cực nhanh, thường chỉ ~30 giây cho 888k samples (so với 6-8h của step2).
+
+**6.2 Build speaker_id map** — Đếm tần suất từng channel bằng `Counter`, phân loại: channel >= 20 samples → sắp xếp theo count giảm dần, gán `speaker_id = 1, 2, 3, ...`; channel < 20 samples → tất cả gộp vào `speaker_id = 999`. Channel phổ biến nhất sẽ có `speaker_id = 1`.
+
+**6.3 Load aux files** — Đọc `wav_paths.txt` + `phoneme_texts.txt` từ `workdir/`. Validate số dòng phải khớp tuyệt đối với `len(channels)`.
+
+**6.4 Assemble records** — Ghép `wav|phoneme|speaker_id`, lọc hợp lệ (giống step5 cũ), đếm phân bố records theo speaker_id.
+
+**6.5 Shuffle & split** — Cùng seed 42 như step5 cũ để reproducibility. Tuy nhiên records mới sẽ khác records cũ vì đã thêm speaker_id.
+
+**6.6 Save outputs** — Lưu 3 files:
+- `vivoice_train_list.txt` / `vivoice_val_list.txt` (format `wav|phoneme|speaker_id`)
+- `speaker_id_map.json` chứa đầy đủ mapping 2 chiều (channel ↔ speaker_id) + stats, rất hữu ích để audit và debug sau này
+
+**Speaker ID convention (nhất quán với thiết kế):**
+- `0` = Bác Ngạn (đã có trong `prepare_ngan/output/ngan_train_list.txt`)
+- `1, 2, 3, ...` = ViVoice main channels
+- `999` = ViVoice other (channels nhỏ gộp chung)
+
+**Ưu điểm quan trọng:** Vì `random_seed=42` + thứ tự duyệt dataset đúng như step2 → `channels[i]` luôn khớp đúng `wav_paths[i]` và `phonemes[i]`. Không cần đụng đến `step2_extract_audio.py` hay `step3_phonemize.py`.
+
+# **M2: `step6b_apply_filters.py`**
+
+**Vị trí:** `TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/step6b_apply_filters.py`
+
+→ Có 2 cách chạy:
+
+**Cách 1: Truyền qua CLI (KHUYẾN NGHỊ — không cần sửa config.yaml):**
+```powershell
+cd D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\data_pipeline\prepare_vivoice
+
+# Dry-run trước (chỉ log, KHÔNG ghi file) để verify số liệu
+python step6b_apply_filters.py --min-samples 1000 --cap-per-speaker 20000 --dry-run
+
+# Sau khi verify số liệu OK, chạy thật
+python step6b_apply_filters.py --min-samples 1000 --cap-per-speaker 20000
+```
+
+**Cách 2: Sửa `config.yaml` rồi chạy:**
+```yaml
+step6_rebuild:
+  min_samples_per_speaker: 1000
+  cap_per_speaker: 20000
+```
+```powershell
+python step6b_apply_filters.py
+```
+
+### Kết quả mong đợi (verify đã match số liệu thực)
+
+| Metric | Trước | Sau |
+|---|---|---|
+| Records | 887,772 | **695,111** |
+| Speakers | 186 | **129** |
+| Train | 843,383 | **660,355** |
+| Val | 44,389 | **34,756** |
+| Disk wavs | ~164 GB | **~128 GB** |
+| **Wavs cần delete** | — | **192,661 (~35.5 GB)** |
+
+### Files được tạo
+1. `output/vivoice_train_list.txt` (overwrite)
+2. `output/vivoice_val_list.txt` (overwrite)
+3. `output/speaker_id_map.json` (overwrite — GIỮ nguyên `channel_to_speaker_id`, chỉ update `_metadata` + `speaker_id_record_counts`)
+4. `output/speaker_id_map.json.backup_before_filter` (tạo 1 lần, không overwrite ở lần chạy 2)
+5. `output/wavs_to_delete.txt` (~192,661 paths)
+6. `output/wavs_to_keep.txt` (~695,111 paths)
+7. `workdir/logs/step6b_apply_filters.log`
+
+### Test verification (11/11 PASSED)
+- 6 unit tests: parse_record edge cases, filter only, cap only, combined, shuffle deterministic, no-op passthrough
+- 4 e2e tests: default params, dry-run (không ghi file), idempotent (chạy 2 lần OK), realistic ViVoice scale (186 speakers)
+- 1 test với `speaker_id_map.json` THẬT của bạn → khớp 100% (695,111 records, 129 speakers, top 3 cap về 20,000)
