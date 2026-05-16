@@ -87,3 +87,99 @@ python monitor_training.py --log-dir ... --stage 1 \
     --primary-metric "eval/loss_mel" \
     --secondary-metric "eval/align_loss"
 ```
+
+Tôi sẽ sửa file theo thứ tự:
+
+1. **Bug 1**: Đổi default `secondary_metric` thành None, set theo stage trong main()
+2. **Bug 2**: `_handle_flags` thiếu alert plateau cá nhân → thêm
+3. **Bug 3**: `datetime.utcnow()` deprecated → đổi sang `datetime.now(timezone.utc)`
+4. **Wandb integration**: lazy import + 3 namespace define_metric + log scalars + alerts + cleanup
+5. **CLI flags mới**: `--no-discord`, `--wandb-project`, `--wandb-run-name`, `--wandb-resume`
+6. **Comments**: USER CUSTOMIZE markers cho run_name template + tags
+
+## Chỉnh sửa thêm
+### 3 Bug đã fix
+
+| Bug | Trước | Sau |
+|---|---|---|
+| **#1** secondary_metric `eval/mono_align_loss` không tồn tại | KHÔNG BAO GIỜ trigger combined plateau | Auto-set theo stage: Stage 1 → `train/mel_loss`, Stage 2/3 → `eval/dur_loss` |
+| **#2** `_handle_flags` không trigger plateau alert cá nhân | Tracker set flag nhưng nobody gọi broadcast | Plateau alert ngay khi từng metric plateau (warning level) |
+| **#3** `datetime.utcnow()` deprecated từ Python 3.12 | DeprecationWarning trên Vast.ai instance | `datetime.now(timezone.utc)` chuẩn |
+
+### Wandb integration (Option A' của bạn)
+
+**`WandbManager` class** với lifecycle đầy đủ:
+- `__init__()` — lazy, không import wandb
+- `init()` — lazy import wandb, call `define_metric()` cho **3 namespace**, không crash nếu fail
+- `log_scalars()` — log mỗi entry với step bind đúng namespace, **KHÔNG truyền `step=`**
+- `log_monitor_state()` — log `monitor/poll`, `monitor/{tag}_best`, `_stale`, `_increasing`
+- `alert()` — trigger `wandb.alert()` với level mapping (critical→ERROR, warning→WARN, info/progress→INFO)
+- `finish()` — cleanup với `exit_code` từ KeyboardInterrupt / exception
+
+**3 namespace với `define_metric()`**:
+```python
+wandb.define_metric("train/iter")
+wandb.define_metric("train/*", step_metric="train/iter")   # iters
+
+wandb.define_metric("eval/epoch")
+wandb.define_metric("eval/*", step_metric="eval/epoch")    # epoch
+
+wandb.define_metric("monitor/poll")
+wandb.define_metric("monitor/*", step_metric="monitor/poll")  # poll counter
+```
+
+Wandb dashboard tự dùng đúng X-axis cho mỗi namespace, user KHÔNG cần edit gì trong UI.
+
+### CLI flags mới
+
+| Flag | Mục đích |
+|---|---|
+| `--no-discord` | Tắt Discord (chỉ wandb) |
+| `--wandb-project NAME` | Override project (default `story-ai-narrator`) |
+| `--wandb-run-name NAME` | Override run name (default auto-gen từ template) |
+| `--wandb-resume RUN_ID` | Resume wandb run cũ (default tạo run mới) |
+| `--wandb-tags "a,b,c"` | Override tags (default `[styletts2,vietnamese,vivoice]`) |
+
+### USER CUSTOMIZE markers (đầu file)
+
+```python
+# === USER CUSTOMIZE — Run name template ===
+WANDB_RUN_NAME_TEMPLATE = "{stage_short}_{timestamp}"  # ← USER CUSTOMIZE
+
+# === USER CUSTOMIZE — Tags ===
+WANDB_DEFAULT_TAGS = ["styletts2", "vietnamese", "vivoice"]  # ← USER CUSTOMIZE
+
+# === USER CUSTOMIZE — Project name ===
+WANDB_DEFAULT_PROJECT = "story-ai-narrator"  # ← USER CUSTOMIZE
+```
+
+### Cách dùng
+
+```bash
+# Set env vars (1 lần / session)
+export WANDB_API_KEY="..."
+export DISCORD_WEBHOOK_1="https://discord.com/api/webhooks/..."
+
+# Default: cả wandb + Discord (nếu có cả 2 secrets)
+python monitor_training.py --log-dir Models/VietnameseBase --stage 1
+
+# Chỉ wandb (tắt Discord)
+python monitor_training.py --log-dir Models/VietnameseBase --stage 1 --no-discord
+
+# Resume wandb run cũ
+python monitor_training.py --log-dir Models/VietnameseBase --stage 1 \
+    --wandb-resume abc123xyz
+
+# Dry-run (không gửi gì)
+python monitor_training.py --log-dir Models/VietnameseBase --stage 1 --dry-run
+```
+
+### Verification
+
+**23/23 tests PASSED:**
+- 3 tests cho 3 bug fix
+- 4 tests cho secondary_metric auto-set logic
+- 4 tests cho MetricTracker (NaN/plateau/improved/overfitting)
+- 7 tests cho WandbManager (disabled, dry-run, init, log scalars bind step đúng, monitor state, alert levels, resume)
+- 4 tests cho broadcast (no_discord, dry_run skip, wandb_mgr alert, fields appended)
+- 1 test config from_env auto-enable wandb

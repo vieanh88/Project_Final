@@ -1,6 +1,6 @@
 """
 =============================================================================
-  MONITOR TRAINING — Giám sát training StyleTTS2 qua TensorBoard + Discord
+  MONITOR TRAINING — Giám sát StyleTTS2 qua TensorBoard + Discord + Wandb
 =============================================================================
 Mục tiêu: Chạy SONG SONG với train_wrapper.py để:
   1. Đọc TensorBoard events file realtime
@@ -9,7 +9,8 @@ Mục tiêu: Chạy SONG SONG với train_wrapper.py để:
   4. Cảnh báo overfitting (val loss tăng liên tiếp)
   5. Báo cáo tiến độ mỗi N epochs
   6. Gửi notification qua Discord Webhook tới 2 thiết bị
-  7. Print ra console
+  7. Stream ALL scalars + alerts sang Wandb (3 namespace với custom x-axis)
+  8. Print ra console
 
 CHÚ Ý: Script CHỈ cảnh báo, KHÔNG tự dừng training.
         Bạn tự quyết định Ctrl+C khi nhận notification.
@@ -19,10 +20,43 @@ Setup Discord Webhook:
   2. Copy URL dạng: https://discord.com/api/webhooks/XXXXX/YYYYY
   3. Paste vào .env hoặc CLI flag
 
+Setup Wandb (tự động enable khi có env var):
+  export WANDB_API_KEY=your_api_key_here
+  # hoặc thêm WANDB_API_KEY=... vào .env
+
+3 NAMESPACE METRICS với custom x-axis (wandb.define_metric):
+  - train/*  → step_metric = train/iter   (số iter trong epoch)
+  - eval/*   → step_metric = eval/epoch   (epoch number)
+  - monitor/* → step_metric = monitor/poll (số lần poll script)
+KHÔNG truyền step= cho wandb.log — wandb tự dùng step metric đã define.
+
 Chạy lệnh (Terminal 2 — song song với train):
+    # Cả Discord + Wandb (default, nếu có cả 2 secrets)
     python monitor_training.py --log-dir "Models/VietnameseBase"
-    python monitor_training.py --log-dir "..." --patience 15 --min-delta 0.001
-    python monitor_training.py --log-dir "..." --dry-run  # không gửi Discord
+
+    # Chỉ Wandb (tắt Discord)
+    python monitor_training.py --log-dir "..." --no-discord
+
+    # Chỉ Discord (không có WANDB_API_KEY → wandb tự skip)
+    python monitor_training.py --log-dir "..."
+
+    # Resume wandb run cũ
+    python monitor_training.py --log-dir "..." --wandb-resume <run_id>
+
+    # Dry-run (không gửi gì, chỉ print)
+    python monitor_training.py --log-dir "..." --dry-run
+
+Tagging metrics ghi bởi train_*.py (đã verify từ source):
+  STAGE 1 (train_first.py):
+    train/mel_loss, train/gen_loss, train/d_loss,
+    train/mono_loss, train/s2s_loss, train/slm_loss
+    eval/mel_loss
+  STAGE 2 (train_second.py):
+    train/mel_loss, train/gen_loss, train/d_loss,
+    train/ce_loss, train/dur_loss, train/slm_loss,
+    train/norm_loss, train/F0_loss, train/sty_loss,
+    train/diff_loss, train/d_loss_slm, train/gen_loss_slm
+    eval/mel_loss, eval/dur_loss, eval/F0_loss
 =============================================================================
 """
 
@@ -35,7 +69,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -48,6 +82,34 @@ if sys.platform == "win32":
         pass
     os.environ["PYTHONIOENCODING"] = "utf-8"
     os.environ["PYTHONUTF8"] = "1"
+
+# =============================================================================
+# WANDB CONFIGURATION TEMPLATES — USER CUSTOMIZE
+# =============================================================================
+# Run name template — sẽ được format với các biến:
+#   {stage_short} : "stage1" / "stage2" / "stage3"
+#   {stage_name}  : "Stage 1 - Acoustic & Alignment" / etc.
+#   {timestamp}   : "20260515_163022" (year+month+day_hour+min+sec)
+# VÍ DỤ output: "stage1_20260515_163022"
+# Bạn có thể override bằng --wandb-run-name <custom_name> trên CLI
+# Hoặc sửa template dưới đây để có format khác:
+WANDB_RUN_NAME_TEMPLATE = "{stage_short}_{timestamp}"  # ← USER CUSTOMIZE
+
+# Default tags để filter/search runs trên wandb dashboard.
+# Tags stage-specific (stage1/stage2/stage3) sẽ TỰ ĐỘNG thêm vào.
+# VÍ DỤ TAGS HỮU ÍCH:
+#   "styletts2"     — model name
+#   "vietnamese"    — language
+#   "vivoice"       — dataset name
+#   "ngan"          — Bác Ngạn (chỉ Stage 3)
+#   "rtx4080s"      — GPU name
+#   "vastai"        — platform
+# Bạn có thể override bằng --wandb-tags "tag1,tag2" trên CLI
+WANDB_DEFAULT_TAGS = ["styletts2", "vietnamese", "vivoice"]  # ← USER CUSTOMIZE
+
+# Wandb project name mặc định — override bằng --wandb-project
+WANDB_DEFAULT_PROJECT = "story-ai-narrator"  # ← USER CUSTOMIZE
+
 
 # CONFIGURATION
 @dataclass
@@ -63,12 +125,28 @@ class MonitorConfig:
     stage_name: str = "Stage 1 - Acoustic & Alignment"
 
     # --- Metrics cần track ---
-    # Theo code gốc train_first.py, các val metrics được ghi bởi:
-    #   writer.add_scalar('eval/mel_loss', ...)
-    #   writer.add_scalar('eval/mono_align_loss', ...) / 'eval/align_loss'
-    # Nếu tên tag khác, chỉnh ở đây.
+    # Tags THỰC TẾ ghi bởi train_first.py / train_second.py / train_finetune.py:
+    #
+    #   STAGE 1 (train_first.py):
+    #     train/mel_loss, train/gen_loss, train/d_loss,
+    #     train/mono_loss, train/s2s_loss, train/slm_loss
+    #     eval/mel_loss   ← CHỈ CÓ 1 eval tag
+    #
+    #   STAGE 2 (train_second.py):
+    #     train/mel_loss, train/gen_loss, train/d_loss,
+    #     train/ce_loss, train/dur_loss, train/slm_loss,
+    #     train/norm_loss, train/F0_loss, train/sty_loss,
+    #     train/diff_loss, train/d_loss_slm, train/gen_loss_slm
+    #     eval/mel_loss, eval/dur_loss, eval/F0_loss
+    #
+    #   STAGE 3 (train_finetune.py): tương tự Stage 2
+    #
+    # PRIMARY: luôn dùng eval/mel_loss (loss chính, có ở mọi stage)
+    # SECONDARY: được auto-set theo stage trong main() (None để trigger logic):
+    #   Stage 1 → train/mel_loss (vì stage 1 chỉ có 1 eval tag)
+    #   Stage 2/3 → eval/dur_loss (loss expressive quan trọng)
     primary_metric: str = "eval/mel_loss"
-    secondary_metric: str = "eval/mono_align_loss"
+    secondary_metric: Optional[str] = None  # auto-set trong main() theo stage
 
     # --- Plateau detection ---
     patience: int = 5                # Số epochs liên tiếp không giảm đáng kể
@@ -88,19 +166,30 @@ class MonitorConfig:
     # 2 URL để gửi tới 2 thiết bị
     discord_webhook_1: str = ""
     discord_webhook_2: str = ""
+    no_discord: bool = False           # Skip Discord notifications (chỉ wandb)
+
+    # --- Wandb ---
+    # KÍCH HOẠT TỰ ĐỘNG khi có env var WANDB_API_KEY (config sẽ check trong main())
+    wandb_enabled: bool = False
+    wandb_project: str = WANDB_DEFAULT_PROJECT
+    wandb_run_name: str = ""           # Auto-gen từ template nếu rỗng
+    wandb_resume_id: str = ""          # Run ID để resume, rỗng = tạo run mới
+    wandb_tags: List[str] = field(default_factory=lambda: list(WANDB_DEFAULT_TAGS))
 
     # --- Tùy chọn ---
-    dry_run: bool = False              # Không thực sự gửi Discord (chỉ print)
+    dry_run: bool = False              # Không thực sự gửi Discord/wandb (chỉ print)
 
     # --- Log file cho monitor ---
     monitor_log_file: str = "monitor_training.log"
 
     @classmethod
     def from_env(cls) -> "MonitorConfig":
-        """Load Discord webhooks từ .env."""
+        """Load secrets từ .env / environment."""
         config = cls()
         config.discord_webhook_1 = os.environ.get("DISCORD_WEBHOOK_1", "")
         config.discord_webhook_2 = os.environ.get("DISCORD_WEBHOOK_2", "")
+        # Wandb: enable tự động nếu có WANDB_API_KEY
+        config.wandb_enabled = bool(os.environ.get("WANDB_API_KEY", "").strip())
         return config
 
 # LOGGING SETUP
@@ -123,7 +212,257 @@ def setup_logging(log_path: Path) -> logging.Logger:
     )
     return logging.getLogger("monitor")
 
+# =============================================================================
+# WANDB MANAGER
+# =============================================================================
+
+class WandbManager:
+    """
+    Encapsulate toàn bộ wandb logic. Lazy import (chỉ import khi enabled).
+
+    3 NAMESPACE METRICS với custom x-axis (define_metric):
+      - train/* → step_metric = train/iter   (số iter, ~50k/epoch ở Stage 1)
+      - eval/*  → step_metric = eval/epoch   (epoch number, 1-30)
+      - monitor/* → step_metric = monitor/poll (số lần poll script)
+
+    KHÔNG truyền step= cho wandb.log() — wandb tự dùng custom step metric.
+
+    Lifecycle:
+      __init__: chỉ lưu config, KHÔNG init wandb
+      init(): thật sự init wandb run + define_metric
+      log_scalars(): log batch metrics
+      alert(): trigger wandb.alert + custom monitor scalars
+      finish(): cleanup (gọi từ KeyboardInterrupt handler)
+    """
+
+    def __init__(self, config: "MonitorConfig", logger: logging.Logger):
+        self.config = config
+        self.logger = logger
+        self.run = None
+        self.wandb_module = None  # lazy import
+        self.poll_counter = 0  # số lần đã log monitor scalars
+
+        # Track: tag train đã có entry chưa (để biết khi nào cần define_metric)
+        # Wandb yêu cầu định nghĩa step_metric TRƯỚC khi metrics dùng nó được log.
+        # Vì ta đã define_metric với glob "train/*" / "eval/*" / "monitor/*",
+        # không cần track thêm.
+        self._initialized = False
+
+    def init(self) -> bool:
+        """
+        Init wandb run. Trả về True nếu thành công, False nếu fail/disabled.
+        Lỗi ở wandb KHÔNG được crash monitor.
+        """
+        if not self.config.wandb_enabled:
+            self.logger.info("Wandb: DISABLED (không có WANDB_API_KEY env var)")
+            return False
+
+        if self.config.dry_run:
+            self.logger.info("Wandb: DRY-RUN mode (skip init)")
+            return False
+
+        # Lazy import
+        try:
+            import wandb
+            self.wandb_module = wandb
+        except ImportError:
+            self.logger.warning(
+                "Wandb: package chưa cài. Cài bằng: pip install wandb"
+            )
+            return False
+
+        # Build run name
+        run_name = self.config.wandb_run_name
+        if not run_name:
+            stage_short = f"stage{self.config.stage}"
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            try:
+                run_name = WANDB_RUN_NAME_TEMPLATE.format(
+                    stage_short=stage_short,
+                    stage_name=self.config.stage_name,
+                    timestamp=timestamp,
+                )
+            except KeyError as e:
+                self.logger.warning(
+                    f"Wandb: run_name template có biến không hợp lệ: {e}. "
+                    f"Dùng fallback name."
+                )
+                run_name = f"{stage_short}_{timestamp}"
+
+        # Tags: default + stage-specific
+        tags = list(self.config.wandb_tags)
+        stage_tag = f"stage{self.config.stage}"
+        if stage_tag not in tags:
+            tags.append(stage_tag)
+
+        try:
+            init_kwargs = {
+                "project": self.config.wandb_project,
+                "name": run_name,
+                "tags": tags,
+                "config": {
+                    "stage": self.config.stage,
+                    "stage_name": self.config.stage_name,
+                    "primary_metric": self.config.primary_metric,
+                    "secondary_metric": self.config.secondary_metric,
+                    "patience": self.config.patience,
+                    "min_delta": self.config.min_delta,
+                    "log_dir": self.config.log_dir,
+                },
+            }
+            if self.config.wandb_resume_id:
+                init_kwargs["id"] = self.config.wandb_resume_id
+                init_kwargs["resume"] = "must"
+                self.logger.info(
+                    f"Wandb: resume run_id={self.config.wandb_resume_id}"
+                )
+
+            self.run = self.wandb_module.init(**init_kwargs)
+        except Exception as e:
+            self.logger.warning(f"Wandb init thất bại: {e}. Tiếp tục không có wandb.")
+            self.run = None
+            return False
+
+        # === DEFINE METRICS — 3 namespace với custom x-axis ===
+        # Pattern: define step metric trước, sau đó bind glob pattern
+        try:
+            # Namespace 1: TRAIN (step_metric = train/iter)
+            self.wandb_module.define_metric("train/iter")
+            self.wandb_module.define_metric("train/*", step_metric="train/iter")
+
+            # Namespace 2: EVAL (step_metric = eval/epoch)
+            self.wandb_module.define_metric("eval/epoch")
+            self.wandb_module.define_metric("eval/*", step_metric="eval/epoch")
+
+            # Namespace 3: MONITOR (step_metric = monitor/poll)
+            self.wandb_module.define_metric("monitor/poll")
+            self.wandb_module.define_metric("monitor/*", step_metric="monitor/poll")
+        except Exception as e:
+            self.logger.warning(f"Wandb define_metric thất bại: {e}")
+            # Vẫn tiếp tục — không define_metric thì wandb dùng step ngầm định
+
+        self._initialized = True
+        self.logger.info(
+            f"Wandb: ✓ run={run_name} project={self.config.wandb_project} "
+            f"tags={tags}"
+        )
+        if self.run is not None and hasattr(self.run, "url"):
+            self.logger.info(f"Wandb URL: {self.run.url}")
+        return True
+
+    def log_scalars(self, new_data: Dict[str, List]):
+        """
+        Log batch scalars sang wandb.
+
+        Args:
+            new_data: dict {tag_name: List[(step, value, wall_time)]}
+                      Format giống output của TensorBoardReader.scan_new_metrics()
+
+        Logic:
+          - train/*  → log mỗi entry, kèm "train/iter" = step
+          - eval/*   → log mỗi entry, kèm "eval/epoch" = step
+          - khác     → bỏ qua (chỉ track namespaces đã define)
+
+        KHÔNG truyền step= (wandb sẽ dùng custom step metric đã define).
+        """
+        if not self._initialized or self.run is None:
+            return
+
+        # Mỗi entry phải log riêng vì step KHÁC NHAU.
+        # Log batch theo từng entry → wandb tạo điểm chart chính xác.
+        for tag, entries in new_data.items():
+            for step, value, _wall_time in entries:
+                payload = {tag: value}
+
+                # Bind step vào đúng namespace
+                if tag.startswith("train/"):
+                    payload["train/iter"] = step
+                elif tag.startswith("eval/"):
+                    payload["eval/epoch"] = step
+                else:
+                    # Tag không phải train/* hay eval/* — vẫn log nhưng không có x-axis riêng
+                    pass
+
+                try:
+                    self.wandb_module.log(payload)
+                except Exception as e:
+                    self.logger.warning(f"Wandb log thất bại cho {tag}: {e}")
+                    return  # tránh spam warning với cùng error
+
+    def log_monitor_state(
+        self,
+        primary_tracker: "MetricTracker",
+        secondary_tracker: "MetricTracker",
+    ):
+        """
+        Log các "monitor/*" custom scalars: best_value, stale_count, increasing_count.
+
+        Trigger 1 lần/poll, dùng poll_counter làm step.
+        """
+        if not self._initialized or self.run is None:
+            return
+
+        self.poll_counter += 1
+        payload = {"monitor/poll": self.poll_counter}
+
+        for tracker in (primary_tracker, secondary_tracker):
+            if not tracker.history:
+                continue
+            # Tên metric: dùng tag gốc + suffix
+            # Ví dụ: monitor/eval_mel_loss_best, monitor/eval_mel_loss_stale
+            safe_name = tracker.name.replace("/", "_")
+            if tracker.best_value is not None:
+                payload[f"monitor/{safe_name}_best"] = tracker.best_value
+            payload[f"monitor/{safe_name}_stale"] = tracker.stale_count
+            payload[f"monitor/{safe_name}_increasing"] = tracker.increasing_count
+
+        try:
+            self.wandb_module.log(payload)
+        except Exception as e:
+            self.logger.warning(f"Wandb log_monitor_state thất bại: {e}")
+
+    def alert(self, title: str, text: str, level: str):
+        """
+        Trigger wandb.alert (gửi email tới owner của wandb account).
+
+        Level mapping:
+          critical → wandb.AlertLevel.ERROR
+          warning  → wandb.AlertLevel.WARN
+          info/progress → wandb.AlertLevel.INFO
+
+        Rate limit: 30 emails/run/24h (theo wandb docs). Plateau alert có
+        flag `plateau_alerted=True` để tránh spam → KHÔNG chạm limit.
+        """
+        if not self._initialized or self.run is None:
+            return
+
+        try:
+            level_map = {
+                "critical": self.wandb_module.AlertLevel.ERROR,
+                "warning": self.wandb_module.AlertLevel.WARN,
+                "info": self.wandb_module.AlertLevel.INFO,
+                "progress": self.wandb_module.AlertLevel.INFO,
+            }
+            wandb_level = level_map.get(level, self.wandb_module.AlertLevel.INFO)
+            self.wandb_module.alert(title=title, text=text, level=wandb_level)
+        except Exception as e:
+            # Không spam warning cho mọi alert; chỉ log debug
+            self.logger.debug(f"Wandb alert thất bại: {e}")
+
+    def finish(self, exit_code: int = 0):
+        """Cleanup wandb run. Gọi từ KeyboardInterrupt handler hoặc end-of-main."""
+        if not self._initialized or self.run is None:
+            return
+        try:
+            self.wandb_module.finish(exit_code=exit_code)
+            self.logger.info("Wandb: run finished cleanly.")
+        except Exception as e:
+            self.logger.warning(f"Wandb finish thất bại: {e}")
+
+
+# =============================================================================
 # DISCORD NOTIFICATION
+# =============================================================================
 # Màu sắc embed theo mức độ (Discord dùng decimal int)
 DISCORD_COLORS = {
     "info":      0x3498DB,  # Xanh dương
@@ -164,7 +503,7 @@ def send_discord(
         "title": title,
         "description": description,
         "color": color,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "footer": {"text": "StyleTTS2 Training Monitor"},
     }
 
@@ -194,8 +533,16 @@ def broadcast(
     level: str,
     logger: logging.Logger,
     fields: Optional[List[Dict]] = None,
+    wandb_mgr: Optional["WandbManager"] = None,
 ):
-    """Gửi notification tới CẢ 2 webhook + print ra console."""
+    """
+    Gửi notification tới: console (luôn) + Discord (nếu có) + wandb alert (nếu có).
+
+    Behavior matrix:
+      dry_run = True       → chỉ console, KHÔNG gửi Discord/wandb
+      no_discord = True    → console + wandb (skip Discord)
+      no_discord = False   → console + Discord + wandb
+    """
     # Icon theo level
     icons = {
         "info":      "ℹ️",
@@ -220,24 +567,36 @@ def broadcast(
     else:
         logger.info(console_msg)
 
-    # Gửi Discord (trừ khi dry_run)
+    # Dry-run: skip cả Discord và wandb
     if config.dry_run:
-        logger.info("  [DRY RUN] Không gửi Discord thực tế.")
+        logger.info("  [DRY RUN] Không gửi Discord/wandb thực tế.")
         return
 
-    # Thêm icon vào title cho Discord
-    discord_title = f"{icon} {title}"
+    # Discord (trừ khi --no-discord)
+    if not config.no_discord:
+        # Thêm icon vào title cho Discord
+        discord_title = f"{icon} {title}"
 
-    results = []
-    for idx, url in enumerate([config.discord_webhook_1, config.discord_webhook_2], 1):
-        if url:
-            ok = send_discord(url, discord_title, description, level, logger, fields)
-            results.append(f"Webhook #{idx}: {'OK' if ok else 'FAIL'}")
+        results = []
+        for idx, url in enumerate([config.discord_webhook_1, config.discord_webhook_2], 1):
+            if url:
+                ok = send_discord(url, discord_title, description, level, logger, fields)
+                results.append(f"Webhook #{idx}: {'OK' if ok else 'FAIL'}")
 
-    if results:
-        logger.info(f"  Discord: {' | '.join(results)}")
+        if results:
+            logger.info(f"  Discord: {' | '.join(results)}")
     else:
-        logger.warning("  Không có Discord webhook nào được cấu hình!")
+        logger.debug("  Discord: SKIPPED (--no-discord)")
+
+    # Wandb alert (nếu wandb được init)
+    if wandb_mgr is not None:
+        # Build text cho wandb alert (gộp description + fields)
+        wandb_text = description
+        if fields:
+            wandb_text += "\n\n"
+            for f in fields:
+                wandb_text += f"• {f['name']}: {f['value']}\n"
+        wandb_mgr.alert(title=title, text=wandb_text, level=level)
 
 
 # =============================================================================
@@ -474,12 +833,17 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
 
     tensorboard_dir.mkdir(parents=True, exist_ok=True)
 
+    # === WANDB INIT (lazy — chỉ init nếu enabled) ===
+    wandb_mgr = WandbManager(config, logger)
+    wandb_mgr.init()  # silent fail nếu wandb không enabled hoặc lỗi
+
     # --- Reader ---
     reader = TensorBoardReader(tensorboard_dir, logger)
 
     logger.info(f"Chờ TensorBoard events file tại: {tensorboard_dir}")
     if not reader.wait_for_events_file(max_wait_s=1800):
         logger.error("Timeout — không tìm thấy events file. Thoát.")
+        wandb_mgr.finish(exit_code=1)
         return
 
     # --- Trackers ---
@@ -505,12 +869,16 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
         description=(
             f"Bắt đầu giám sát training.\n"
             f"**log_dir**: `{config.log_dir}`\n"
+            f"**Primary**: `{config.primary_metric}`\n"
+            f"**Secondary**: `{config.secondary_metric}`\n"
             f"**Patience**: {config.patience} epochs\n"
             f"**Min delta**: {config.min_delta}\n"
-            f"**Progress report**: mỗi {config.progress_report_interval} epochs"
+            f"**Progress report**: mỗi {config.progress_report_interval} epochs\n"
+            f"**Wandb**: {'✓ ENABLED' if wandb_mgr._initialized else '✗ disabled'}"
         ),
         level="info",
         logger=logger,
+        wandb_mgr=wandb_mgr,
     )
 
     # --- In danh sách tags available (debug) ---
@@ -545,6 +913,7 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
     logger.info("=" * 60)
 
     iteration = 0
+    exit_code = 0
     try:
         while True:
             iteration += 1
@@ -557,7 +926,15 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
                 logger.info(f"[Poll #{iteration}] Không có data mới.")
                 continue
 
-            logger.info(f"[Poll #{iteration}] Nhận {sum(len(v) for v in new_data.values())} entries mới")
+            logger.info(
+                f"[Poll #{iteration}] Nhận {sum(len(v) for v in new_data.values())} "
+                f"entries mới ({len(new_data)} tags)"
+            )
+
+            # === WANDB: Log TẤT CẢ scalars mới (train/* và eval/*) ===
+            # Chạy đầu tiên trong poll để wandb cập nhật REALTIME, không bị
+            # delay bởi xử lý plateau/overfitting bên dưới.
+            wandb_mgr.log_scalars(new_data)
 
             # --- Xử lý primary metric ---
             if config.primary_metric in new_data:
@@ -569,6 +946,7 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
                         flags=flags,
                         step=step,
                         value=value,
+                        wandb_mgr=wandb_mgr,
                     )
 
             # --- Xử lý secondary metric ---
@@ -581,7 +959,11 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
                         flags=flags,
                         step=step,
                         value=value,
+                        wandb_mgr=wandb_mgr,
                     )
+
+            # === WANDB: Log monitor/* state (best, stale, increasing) ===
+            wandb_mgr.log_monitor_state(primary_tracker, secondary_tracker)
 
             # --- Kiểm tra COMBINED PLATEAU (cả 2 metrics đều plateau) ---
             both_plateau = (
@@ -623,6 +1005,7 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
                     level="critical",
                     logger=logger,
                     fields=fields,
+                    wandb_mgr=wandb_mgr,
                 )
 
             # --- Progress report định kỳ ---
@@ -638,6 +1021,7 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
                     config, logger,
                     primary_tracker, secondary_tracker,
                     current_epoch=latest_epoch,
+                    wandb_mgr=wandb_mgr,
                 )
                 last_progress_epoch = latest_epoch
 
@@ -652,7 +1036,15 @@ def run_monitor(config: MonitorConfig, logger: logging.Logger):
             description="Monitor đã dừng bởi người dùng (Ctrl+C).",
             level="info",
             logger=logger,
+            wandb_mgr=wandb_mgr,
         )
+    except Exception:
+        # Re-raise sau khi finish wandb với exit_code != 0
+        exit_code = 1
+        wandb_mgr.finish(exit_code=exit_code)
+        raise
+    finally:
+        wandb_mgr.finish(exit_code=exit_code)
 
 
 def _handle_flags(
@@ -662,6 +1054,7 @@ def _handle_flags(
     flags: Dict[str, bool],
     step: int,
     value: float,
+    wandb_mgr: Optional["WandbManager"] = None,
 ):
     """Xử lý các flag từ tracker.update() — gửi cảnh báo khi cần."""
 
@@ -679,6 +1072,7 @@ def _handle_flags(
             ),
             level="critical",
             logger=logger,
+            wandb_mgr=wandb_mgr,
         )
         return
 
@@ -692,6 +1086,28 @@ def _handle_flags(
         logger.info(
             f"  · {tracker.name}: {value:.4f} @ epoch {step} "
             f"(stale: {tracker.stale_count}/{tracker.patience})"
+        )
+
+    # --- BUG 2 FIX: Plateau detection (PER-METRIC alert) ---
+    # Trước đây: tracker set flag is_plateau=True nhưng nobody trigger broadcast
+    # Giờ: trigger alert ngay khi metric cụ thể plateau (chưa cần CẢ HAI plateau)
+    if flags["is_plateau"]:
+        broadcast(
+            config,
+            title=f"📉 PLATEAU — {tracker.name}",
+            description=(
+                f"**{config.stage_name}**\n\n"
+                f"Metric `{tracker.name}` đã PLATEAU "
+                f"(không giảm > {config.min_delta} trong "
+                f"{tracker.patience} epochs liên tiếp).\n\n"
+                f"Giá trị hiện tại: `{value:.4f}` @ epoch {step}\n"
+                f"Best value: `{tracker.best_value:.4f}` @ epoch {tracker.best_step}\n\n"
+                f"🔔 **Đề xuất**: chờ thêm metric thứ 2 plateau "
+                f"trước khi dừng (combined alert sẽ trigger sau)."
+            ),
+            level="warning",
+            logger=logger,
+            wandb_mgr=wandb_mgr,
         )
 
     # --- Overfitting detection ---
@@ -714,6 +1130,7 @@ def _handle_flags(
             ),
             level="warning",
             logger=logger,
+            wandb_mgr=wandb_mgr,
         )
 
 
@@ -723,6 +1140,7 @@ def _send_progress_report(
     primary_tracker: MetricTracker,
     secondary_tracker: MetricTracker,
     current_epoch: int,
+    wandb_mgr: Optional["WandbManager"] = None,
 ):
     """Gửi báo cáo tiến độ định kỳ."""
 
@@ -777,12 +1195,16 @@ def _send_progress_report(
         level="progress",
         logger=logger,
         fields=fields,
+        wandb_mgr=wandb_mgr,
     )
 
 # MAIN
 def main():
     parser = argparse.ArgumentParser(
-        description="Monitor StyleTTS2 training qua TensorBoard + Discord notifications"
+        description=(
+            "Monitor StyleTTS2 training qua TensorBoard + Discord + wandb. "
+            "Wandb tự động enable nếu có WANDB_API_KEY env var."
+        )
     )
     parser.add_argument(
         "--log-dir", "-l",
@@ -818,8 +1240,11 @@ def main():
     parser.add_argument(
         "--secondary-metric",
         type=str,
-        default="eval/mono_align_loss",
-        help="Metric phụ (mặc định: eval/mono_align_loss)",
+        default=None,
+        help=(
+            "Metric phụ. Mặc định auto-set theo stage: "
+            "Stage 1 → 'train/mel_loss', Stage 2/3 → 'eval/dur_loss'"
+        ),
     )
     parser.add_argument(
         "--progress-report-interval",
@@ -833,6 +1258,8 @@ def main():
         default=60,
         help="Khoảng thời gian scan TensorBoard (giây, mặc định: 60)",
     )
+
+    # --- Discord ---
     parser.add_argument(
         "--webhook-1",
         type=str,
@@ -846,9 +1273,53 @@ def main():
         help="Override Discord Webhook URL #2",
     )
     parser.add_argument(
+        "--no-discord",
+        action="store_true",
+        help=(
+            "TẮT Discord notifications (vẫn dùng wandb nếu enabled). "
+            "Hữu ích khi chỉ muốn dùng wandb thuần."
+        ),
+    )
+
+    # --- Wandb ---
+    parser.add_argument(
+        "--wandb-project",
+        type=str,
+        default=None,
+        help=f"Wandb project name (mặc định: '{WANDB_DEFAULT_PROJECT}')",
+    )
+    parser.add_argument(
+        "--wandb-run-name",
+        type=str,
+        default=None,
+        help=(
+            "Wandb run name. Mặc định auto-gen từ template "
+            f"'{WANDB_RUN_NAME_TEMPLATE}' (xem WANDB_RUN_NAME_TEMPLATE trong file)."
+        ),
+    )
+    parser.add_argument(
+        "--wandb-resume",
+        type=str,
+        default=None,
+        metavar="RUN_ID",
+        help="Resume wandb run cụ thể bằng run_id (mặc định: tạo run mới)",
+    )
+    parser.add_argument(
+        "--wandb-tags",
+        type=str,
+        default=None,
+        help=(
+            "Tags cho wandb run, format CSV. "
+            f"VÍ DỤ: --wandb-tags 'rtx4080s,vastai'. "
+            f"Default tags: {WANDB_DEFAULT_TAGS} (luôn thêm 'stage{{N}}')."
+        ),
+    )
+
+    # --- Tùy chọn khác ---
+    parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Không gửi Discord thực tế (chỉ print)",
+        help="Không gửi Discord/wandb thực tế (chỉ print ra console)",
     )
     args = parser.parse_args()
 
@@ -860,7 +1331,7 @@ def main():
             break
 
     # --- Build config ---
-    config = MonitorConfig.from_env()
+    config = MonitorConfig.from_env()  # đã set wandb_enabled nếu có WANDB_API_KEY
 
     config.log_dir = args.log_dir
     config.stage = args.stage
@@ -873,25 +1344,64 @@ def main():
     config.patience = args.patience
     config.min_delta = args.min_delta
     config.primary_metric = args.primary_metric
-    config.secondary_metric = args.secondary_metric
     config.progress_report_interval = args.progress_report_interval
     config.poll_interval_s = args.poll_interval
     config.dry_run = args.dry_run
 
+    # === BUG 1 FIX: Auto-set secondary_metric theo stage ===
+    # Tag thật của StyleTTS2 (đã verify):
+    #   Stage 1 (train_first.py)  → eval/* CHỈ có 'eval/mel_loss' duy nhất
+    #     → secondary = 'train/mel_loss' (smooth train mel loss để check trend)
+    #   Stage 2 (train_second.py) → eval/* có mel_loss, dur_loss, F0_loss
+    #     → secondary = 'eval/dur_loss' (expressive metric quan trọng)
+    #   Stage 3 (train_finetune.py) → kế thừa từ train_second
+    #     → secondary = 'eval/dur_loss'
+    if args.secondary_metric is None:
+        if args.stage == 1:
+            config.secondary_metric = "train/mel_loss"
+        else:  # Stage 2, 3
+            config.secondary_metric = "eval/dur_loss"
+    else:
+        config.secondary_metric = args.secondary_metric
+
+    # Discord overrides
     if args.webhook_1:
         config.discord_webhook_1 = args.webhook_1
     if args.webhook_2:
         config.discord_webhook_2 = args.webhook_2
+    config.no_discord = args.no_discord
 
-    # --- Validate ---
+    # Wandb overrides
+    if args.wandb_project:
+        config.wandb_project = args.wandb_project
+    if args.wandb_run_name:
+        config.wandb_run_name = args.wandb_run_name
+    if args.wandb_resume:
+        config.wandb_resume_id = args.wandb_resume
+    if args.wandb_tags:
+        config.wandb_tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
+
+    # --- Validate: phải có ít nhất 1 kênh notification (trừ khi dry-run) ---
     if not config.dry_run:
-        if not config.discord_webhook_1 and not config.discord_webhook_2:
-            print("[LỖI] Không có Discord webhook nào!")
-            print("  Cách 1: Thêm vào .env:")
-            print("    DISCORD_WEBHOOK_1=https://discord.com/api/webhooks/...")
-            print("    DISCORD_WEBHOOK_2=https://discord.com/api/webhooks/...")
-            print("  Cách 2: Dùng --webhook-1 và --webhook-2")
-            print("  Cách 3: Dùng --dry-run để test (không gửi Discord)")
+        has_discord = (
+            not config.no_discord
+            and (config.discord_webhook_1 or config.discord_webhook_2)
+        )
+        has_wandb = config.wandb_enabled
+        if not has_discord and not has_wandb:
+            print("[LỖI] Không có kênh notification nào!")
+            print("  Bạn cần CÍT NHẤT 1 trong các option:")
+            print("  ────────────────────────────────────────")
+            print("  Option A — Wandb (KHUYẾN NGHỊ):")
+            print("    export WANDB_API_KEY=your_key_here")
+            print("    Hoặc thêm WANDB_API_KEY=... vào .env")
+            print("  ────────────────────────────────────────")
+            print("  Option B — Discord:")
+            print("    export DISCORD_WEBHOOK_1=https://discord.com/api/webhooks/...")
+            print("    Hoặc dùng --webhook-1 / --webhook-2")
+            print("  ────────────────────────────────────────")
+            print("  Option C — Dry-run (test, không gửi gì):")
+            print("    python monitor_training.py --dry-run ...")
             sys.exit(1)
 
     # --- Setup logging ---
@@ -910,8 +1420,16 @@ def main():
     logger.info(f"Min delta            : {config.min_delta}")
     logger.info(f"Progress interval    : {config.progress_report_interval} epochs")
     logger.info(f"Poll interval        : {config.poll_interval_s}s")
-    logger.info(f"Webhook #1           : {'✓ đã cấu hình' if config.discord_webhook_1 else '✗ CHƯA CÓ'}")
-    logger.info(f"Webhook #2           : {'✓ đã cấu hình' if config.discord_webhook_2 else '✗ CHƯA CÓ'}")
+    logger.info(f"Discord              : {'OFF (--no-discord)' if config.no_discord else 'ON'}")
+    if not config.no_discord:
+        logger.info(f"  Webhook #1         : {'✓ đã cấu hình' if config.discord_webhook_1 else '✗ CHƯA CÓ'}")
+        logger.info(f"  Webhook #2         : {'✓ đã cấu hình' if config.discord_webhook_2 else '✗ CHƯA CÓ'}")
+    logger.info(f"Wandb                : {'✓ ENABLED' if config.wandb_enabled else '✗ disabled (no WANDB_API_KEY)'}")
+    if config.wandb_enabled:
+        logger.info(f"  Project            : {config.wandb_project}")
+        logger.info(f"  Run name           : {config.wandb_run_name or '(auto-gen từ template)'}")
+        logger.info(f"  Resume run_id      : {config.wandb_resume_id or '(N/A - tạo run mới)'}")
+        logger.info(f"  Tags (default)     : {config.wandb_tags}")
     logger.info(f"Dry run              : {config.dry_run}")
 
     # --- Run ---
@@ -925,6 +1443,7 @@ def main():
             description=f"Monitor script gặp lỗi:\n```{str(e)[:500]}```",
             level="critical",
             logger=logger,
+            wandb_mgr=None,  # wandb_mgr đã được run_monitor finish trong except block
         )
         sys.exit(1)
 
