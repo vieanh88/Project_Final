@@ -2,7 +2,7 @@ ASR_config: Utils/ASR/config.yml
 ASR_path: Utils/ASR/epoch_00080.pth
 F0_path: Utils/JDC/bst.t7
 PLBERT_dir: D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\plbert_v2\checkpoints
-batch_size: 2
+batch_size: 16
 data_params:
   OOD_data: ''
   min_length: 50
