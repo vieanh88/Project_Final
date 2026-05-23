@@ -93,7 +93,7 @@ if sys.platform == "win32":
 # VÍ DỤ output: "stage1_20260515_163022"
 # Bạn có thể override bằng --wandb-run-name <custom_name> trên CLI
 # Hoặc sửa template dưới đây để có format khác:
-WANDB_RUN_NAME_TEMPLATE = "{stage_short}_{timestamp}"  # ← USER CUSTOMIZE
+WANDB_RUN_NAME_TEMPLATE = "styleTTS2--{stage_short}-subset-epoch3rerun-ep{target_epochs}-bs{batch_size}"
 
 # Default tags để filter/search runs trên wandb dashboard.
 # Tags stage-specific (stage1/stage2/stage3) sẽ TỰ ĐỘNG thêm vào.
@@ -123,6 +123,10 @@ class MonitorConfig:
     # --- Stage (chỉ dùng để hiển thị trong notification) ---
     stage: int = 1
     stage_name: str = "Stage 1 - Acoustic & Alignment"
+
+    # Thêm để tạo tên run trên wandb (nếu dùng template)
+    batch_size: Optional[int] = None
+    target_epochs: Optional[int] = None
 
     # --- Metrics cần track ---
     # Tags THỰC TẾ ghi bởi train_first.py / train_second.py / train_finetune.py:
@@ -276,11 +280,25 @@ class WandbManager:
         if not run_name:
             stage_short = f"stage{self.config.stage}"
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            batch_size = (
+                self.config.batch_size
+                if self.config.batch_size is not None
+                else "NA"
+            )
+            target_epochs = (
+                self.config.target_epochs
+                if self.config.target_epochs is not None
+                else "NA"
+            )
+
             try:
                 run_name = WANDB_RUN_NAME_TEMPLATE.format(
                     stage_short=stage_short,
                     stage_name=self.config.stage_name,
                     timestamp=timestamp,
+                    batch_size=batch_size,
+                    target_epochs=target_epochs,
                 )
             except KeyError as e:
                 self.logger.warning(
@@ -1314,6 +1332,18 @@ def main():
             f"Default tags: {WANDB_DEFAULT_TAGS} (luôn thêm 'stage{{N}}')."
         ),
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Batch size dùng để đặt tên wandb run, ví dụ bs12",
+    )
+    parser.add_argument(
+        "--target-epochs",
+        type=int,
+        default=None,
+        help="Số epoch target dùng để đặt tên wandb run, ví dụ ep30",
+    )
 
     # --- Tùy chọn khác ---
     parser.add_argument(
@@ -1347,6 +1377,8 @@ def main():
     config.progress_report_interval = args.progress_report_interval
     config.poll_interval_s = args.poll_interval
     config.dry_run = args.dry_run
+    config.batch_size = args.batch_size
+    config.target_epochs = args.target_epochs
 
     # === BUG 1 FIX: Auto-set secondary_metric theo stage ===
     # Tag thật của StyleTTS2 (đã verify):

@@ -173,13 +173,3 @@ python monitor_training.py --log-dir Models/VietnameseBase --stage 1 \
 # Dry-run (không gửi gì)
 python monitor_training.py --log-dir Models/VietnameseBase --stage 1 --dry-run
 ```
-
-### Verification
-
-**23/23 tests PASSED:**
-- 3 tests cho 3 bug fix
-- 4 tests cho secondary_metric auto-set logic
-- 4 tests cho MetricTracker (NaN/plateau/improved/overfitting)
-- 7 tests cho WandbManager (disabled, dry-run, init, log scalars bind step đúng, monitor state, alert levels, resume)
-- 4 tests cho broadcast (no_discord, dry_run skip, wandb_mgr alert, fields appended)
-- 1 test config from_env auto-enable wandb

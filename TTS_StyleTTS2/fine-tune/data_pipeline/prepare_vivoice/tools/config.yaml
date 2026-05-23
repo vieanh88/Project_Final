@@ -1,0 +1,3 @@
+data_params:
+  train_data: "D:/Documents/HUST/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
+  val_data: "D:/Documents/HUST/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
