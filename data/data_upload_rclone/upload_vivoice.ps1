@@ -20,9 +20,9 @@
 # CONFIG -- edit these if your paths differ
 # ============================================================
 $SOURCE_DIR  = "D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2\fine-tune\data_pipeline\prepare_vivoice\output\vivoice_clean_wavs"
-$DEST_REMOTE = "gdrive:vastai_upload/vivoice_clean_wavs.tar"
+$DEST_REMOTE = "gdrive:vastai_vivoice_small_upload/vivoice_clean_wavs.tar"
 $LOG_FILE    = "$PSScriptRoot\upload_vivoice.log"
-$MAX_RETRIES = 5
+$MAX_RETRIES = 10
 $RETRY_WAIT_MIN = 5
 
 # ============================================================
@@ -104,7 +104,7 @@ if ($drive) {
 
 # Check 6: Create remote folder if not exists
 Write-Log "Ensuring remote folder exists..." "White"
-rclone mkdir "gdrive:vastai_upload" 2>$null
+rclone mkdir "gdrive:vastai_vivoice_small_upload" 2>$null
 Write-Log "OK: Remote folder ready" "Green"
 
 # ============================================================
@@ -214,7 +214,7 @@ if ($success) {
     Write-Log "============================================================" "Green"
     Write-Log "" "White"
     Write-Log "Next steps:" "Cyan"
-    Write-Log "  1. Verify: rclone size gdrive:vastai_upload" "White"
+    Write-Log "  1. Verify: rclone size gdrive:vastai_vivoice_small_upload" "White"
     Write-Log "  2. Upload metadata files (filelists, vocab, plbert_v2)" "White"
     Write-Log "  3. On Vast.ai: bash pull_data.sh" "White"
 }
