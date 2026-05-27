@@ -12,15 +12,20 @@
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseBase"
 first_stage_path: "first_stage.pth"     # Để trống (train từ đầu)
-save_freq: 2                            # Lưu checkpoint mỗi 2 epochs
+save_freq: 1                            # Lưu checkpoint mỗi 1 epoch
 log_interval: 20                        # Log mỗi 20 steps
 device: "cuda"
 
+# --- Step checkpoint ---
+save_step_freq: 6000        # lưu mỗi 4000 optimizer steps; có thể dùng 6000 nếu ổn định
+save_total_limit: 3         # chỉ giữ 3 step checkpoint mới nhất để tránh đầy disk
+resume_skip_batches: true   # khi resume từ step checkpoint thì skip batch đã chạy trong epoch đó
+
 # --- Training Schedule ---
-epochs_1st: 30                          # Số epochs cho Stage 1
-epochs_2nd: 0                           # Không dùng (chỉ chạy 1st stage)
-batch_size: 16                          # VRAM 24GB: thử 16 trước, tăng 32 nếu đủ
-max_len: 400                            # Max frames per sample
+epochs_1st: 3                          # Số epochs cho Stage 1
+epochs_2nd: 0                          # Không dùng (chỉ chạy 1st stage)
+batch_size: 12                         # VRAM 48GB: thử 8 trước, tăng 16 nếu đủ
+max_len: 200                           # Max frames per sample
 
 # --- Checkpoint Loading ---
 pretrained_model: ""                    # Để trống (train từ đầu)
@@ -38,7 +43,7 @@ PLBERT_dir: "plbert_v2/checkpoints/"       # ← PL-BERT tiếng Việt
 data_params:
   train_data: "data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
   val_data: "data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
-  root_path: "D:/Documents/HUST/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"  # Thêm root_path để sửa lỗi đọc file
+  root_path: "/workspace/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"  # Thêm root_path để sửa lỗi đọc file
   OOD_data: ""                          # Không dùng OOD ở Stage 1
   min_length: 50
 
@@ -109,7 +114,7 @@ loss_params:
   # TMA (Text-Mel Alignment) — ACTIVE ở Stage 1
   lambda_mono: 1.0        # Monotonic alignment loss
   lambda_s2s: 0.5         # Sequence-to-sequence loss| giảm quyền lực của ASR từ 1.0 xuống 0.5, tập trung vào MAS
-  TMA_epoch: 10           # Bật TMA từ epoch 10
+  TMA_epoch: 1            # Bật TMA ở epoch 2 (để model có thời gian học phát âm trước khi ép alignment)
 
   # Các loss dưới đây KHÔNG ACTIVE vì joint_epoch = 9999
   lambda_F0: 1.0

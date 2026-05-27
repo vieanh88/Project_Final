@@ -13,16 +13,21 @@
 
 # --- Đường dẫn & Checkpoint ---
 log_dir: "Models/VietnameseExpressive"
-save_freq: 2                            # Lưu checkpoint mỗi 2 epochs
+save_freq: 1                            # Lưu checkpoint mỗi 1 epoch
 log_interval: 20                        # Log mỗi 20 steps
 device: "cuda"
 
+# --- Step checkpoint ---
+save_step_freq: 6000        # lưu mỗi 4000 optimizer steps; có thể dùng 6000 nếu ổn định
+save_total_limit: 3         # chỉ giữ 3 step checkpoint mới nhất để tránh đầy disk
+resume_skip_batches: true   # khi resume từ step checkpoint thì skip batch đã chạy trong epoch đó
+
 # --- Training Schedule ---
 epochs_1st: 0                           # Không dùng (đã qua Stage 1)
-epochs_2nd: 30                          # Số epochs cho Stage 2
-batch_size: 6                           # *** GIẢM MẠNH: JAT + WavLM rất tốn VRAM ***
-                                        # Thử 6 nếu VRAM 24GB đủ, giảm 4 nếu OOM
-max_len: 400
+epochs_2nd: 6                           # Số epochs cho Stage 2
+batch_size: 4                           # *** GIẢM MẠNH: JAT + WavLM rất tốn VRAM ***
+                                        # Thử 6 nếu VRAM 48GB đủ, giảm 4 nếu OOM
+max_len: 200
 
 # --- Checkpoint Loading ---
 # *** PATH A CANONICAL (Stage 1 → Stage 2 transition) ***
@@ -54,7 +59,7 @@ PLBERT_dir: "plbert_v2/checkpoints/"       # ← PL-BERT tiếng Việt
 data_params:
   train_data: "data_pipeline/prepare_vivoice/output/vivoice_train_list.txt"
   val_data: "data_pipeline/prepare_vivoice/output/vivoice_val_list.txt"
-  root_path: "D:/Documents/HUST/HUST_Project/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"  # Thêm root_path để sửa lỗi đọc file
+  root_path: "/workspace/Project_Final/TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice"  # Thêm root_path để sửa lỗi đọc file
   OOD_data: "data_pipeline/prepare_ood/output/OOD_texts_phoneme.txt"                                 # ← 50k câu truyện ma
   min_length: 50
 
@@ -123,7 +128,7 @@ loss_params:
 
   # TMA
   lambda_mono: 1.0
-  lambda_s2s: 1.0
+  lambda_s2s: 0.5             # Giảm quyền lực của ASR, tập trung vào monotonic alignment
   TMA_epoch: 0                # TMA bật ngay từ đầu (đã học ở Stage 1)
 
   # Expressive losses — tất cả ACTIVE
@@ -135,8 +140,8 @@ loss_params:
   lambda_diff: 1.0
 
   # TRÁNH OVERFITTING SỚM: BẬT LẦN LƯỢT (diffusion sau, joint training sau)
-  diff_epoch: 5                # Style diffusion: BẬT từ epoch 5 (cho model ổn định trước)
-  joint_epoch: 10              # Joint training:  BẬT từ epoch 10 (cho diffusion có thời gian học trước)
+  diff_epoch: 1                # Style diffusion: BẬT từ epoch 1 (cho model ổn định trước)
+  joint_epoch: 3               # Joint training:  BẬT từ epoch 3 (cho diffusion có thời gian học trước)
 
 # --- Optimizer ---
 optimizer_params:
