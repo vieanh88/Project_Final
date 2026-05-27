@@ -1,0 +1,48 @@
+{
+  "original": {
+    "label": "original",
+    "records": 887772,
+    "speakers": 186,
+    "train_records": 843383,
+    "val_records": 44389,
+    "min_samples_per_speaker": 20,
+    "cap_per_speaker": null,
+    "mean_records_per_speaker": 4772.967741935484,
+    "median_records_per_speaker": 2011.0,
+    "max_records_per_speaker": 99847,
+    "min_records_per_speaker": 24
+  },
+  "filtered": {
+    "label": "filtered",
+    "records": 396190,
+    "speakers": 110,
+    "train_records": 376380,
+    "val_records": 19810,
+    "min_samples_per_speaker": 1500,
+    "cap_per_speaker": 4500,
+    "mean_records_per_speaker": 3601.7272727272725,
+    "median_records_per_speaker": 4500.0,
+    "max_records_per_speaker": 4500,
+    "min_records_per_speaker": 1548
+  },
+  "comparison": {
+    "removed_records": 491582,
+    "retained_records_pct": 44.62744939015874,
+    "dropped_speakers": 76,
+    "kept_speakers": 110,
+    "retained_speakers_pct": 59.13978494623656
+  },
+  "filelists_current": {
+    "train_exists": true,
+    "val_exists": true,
+    "train_records": 376380,
+    "val_records": 19810,
+    "total_records": 396190,
+    "bad_lines": 0,
+    "unique_speakers": 110,
+    "phoneme_token_length_mean": 16.921785002145434,
+    "phoneme_token_length_median": 15.0,
+    "phoneme_char_length_mean": 135.15608925010727,
+    "phoneme_char_length_median": 114.0
+  }
+}
