@@ -1,6 +1,7 @@
 """
 =============================================================
   STEP 1 (A1): RE-PHONEMIZE NGAN VOICE FOR StyleTTS2-lite-vi
+  SỬ DỤNG VIPHONEME (VIPHONE_VI2IPA_SPLIT) + VINORM MONKEY-PATCH
 =============================================================
 Mục tiêu:
   - Đọc text gốc tiếng Việt từ pipeline cũ (StyleTTS2_preprocess).
@@ -14,10 +15,10 @@ Mục tiêu:
     normalize path và split thành format final cho training.
 
 Cách chạy (từ root TTS_StyleTTS2-lite-vi/):
-    python -X utf8 data_pipeline/prepare_ngan_lite/step1_rephonemize_lite.py
+    python -X utf8 data_pipeline/prepare_ngan_lite/step1_rephonemize_viphoneme_lite.py
 
 Hoặc từ thư mục chứa file:
-    python -X utf8 step1_rephonemize_lite.py
+    python -X utf8 step1_rephonemize_viphoneme_lite.py
 =============================================================
 """
 
@@ -76,10 +77,14 @@ from viphoneme import vi2IPA_split
 #   └── TTS_StyleTTS2-lite-vi/
 #       ├── data_pipeline/
 #       │   └── prepare_ngan_lite/
-#       │       └── step1_rephonemize_lite.py  <-- FILE NÀY
+#       │       └── step1_rephonemize_viphoneme_lite.py  <-- FILE NÀY
 #       └── output/
 #           ├── ngan_train_phoneme_raw.txt     <-- OUTPUT
 #           └── ngan_val_phoneme_raw.txt       <-- OUTPUT
+#
+# Đổi đường dẫn để lấy input từ output của step0 (filelist_train_clean.txt, filelist_val_clean.txt)
+# D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi\output\filelist_train_clean.txt
+# D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi\output\filelist_val_clean.txt
 # ============================================================
 SCRIPT_PATH = Path(__file__).resolve()
 PREPARE_DIR = SCRIPT_PATH.parent                       # .../prepare_ngan_lite/
@@ -87,13 +92,13 @@ DATA_PIPELINE_DIR = PREPARE_DIR.parent                 # .../data_pipeline/
 PROJECT_ROOT = DATA_PIPELINE_DIR.parent                # .../TTS_StyleTTS2-lite-vi/
 PROJECT_FINAL_ROOT = PROJECT_ROOT.parent               # .../Project_Final/
 
-INPUT_DIR = PROJECT_FINAL_ROOT / "data" / "StyleTTS2_preprocess" / "output_dataset"
+INPUT_DIR = PROJECT_ROOT / "output"          # ← đọc từ output của step0
 OUTPUT_DIR = PROJECT_ROOT / "output"
 LOG_DIR = PROJECT_ROOT / "logs"
 
 INPUT_FILES = {
-    "train": INPUT_DIR / "filelist_train.txt",
-    "val":   INPUT_DIR / "filelist_val.txt",
+    "train": INPUT_DIR / "filelist_train_clean.txt",   # ← file cleaned
+    "val":   INPUT_DIR / "filelist_val_clean.txt",
 }
 OUTPUT_FILES = {
     "train": OUTPUT_DIR / "ngan_train_phoneme_raw.txt",

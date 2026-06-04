@@ -18,13 +18,24 @@ log_interval: 20                        # Log mỗi 20 steps
 device: "cuda"
 
 # --- Step checkpoint ---
-save_step_freq: 6000        # lưu mỗi 4000 optimizer steps; có thể dùng 6000 nếu ổn định
+save_step_freq: 4000        # lưu mỗi 4000 optimizer steps; có thể dùng 6000 nếu ổn định
 save_total_limit: 3         # chỉ giữ 3 step checkpoint mới nhất để tránh đầy disk
 resume_skip_batches: true   # khi resume từ step checkpoint thì skip batch đã chạy trong epoch đó
 
+# --- Step validation ---
+eval_step_freq: 4000
+eval_step_max_batches: 100
+
+sample_step_freq: 10000
+sample_num_audios: 5
+
+full_eval_each_epoch: true
+eval_seed: 1234
+sample_seed: 4321
+
 # --- Training Schedule ---
 epochs_1st: 0                           # Không dùng (đã qua Stage 1)
-epochs_2nd: 6                           # Số epochs cho Stage 2
+epochs_2nd: 5                           # Số epochs cho Stage 2
 batch_size: 4                           # *** GIẢM MẠNH: JAT + WavLM rất tốn VRAM ***
                                         # Thử 6 nếu VRAM 48GB đủ, giảm 4 nếu OOM
 max_len: 200
@@ -140,8 +151,8 @@ loss_params:
   lambda_diff: 1.0
 
   # TRÁNH OVERFITTING SỚM: BẬT LẦN LƯỢT (diffusion sau, joint training sau)
-  diff_epoch: 1                # Style diffusion: BẬT từ epoch 1 (cho model ổn định trước)
-  joint_epoch: 3               # Joint training:  BẬT từ epoch 3 (cho diffusion có thời gian học trước)
+  diff_epoch: 1                # Style diffusion: BẬT từ epoch 2 (cho model ổn định trước)
+  joint_epoch: 2               # Joint training:  BẬT từ epoch 3 (cho diffusion có thời gian học trước)
 
 # --- Optimizer ---
 optimizer_params:

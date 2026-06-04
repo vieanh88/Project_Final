@@ -2,11 +2,13 @@
 
 | # | File | Mô tả |
 |---|------|-------|
+| A0 | `step0_clean_text.py` | Clean text cũ: mapping từ tiếng Anh -> tiếng Việt và lọc bỏ outro youtube |
 | A1 | `step1_rephonemize_lite.py` | Phonemize text Ngạn bằng viphoneme + replace _ → space + normalize whitespace + skip lỗi G2P |
 | A2 | `step2_make_filelist_lite.py` | (1) Validate từng ký tự thuộc 189 vocab, (2) normalize backslash → forward slash, (3) filter audio < 0.5s, (4) ghi train.txt + val.txt đúng format 2 cột |
-| A3 | `step3_zero_shot_test.ipynb` | Notebook test zero-shot trên 3-5 sample Ngạn (dùng pretrained chưa fine-tune) để verify phoneme tương thích |
+| A3 | `step3_zero_shot_test_kaggle.ipynb` | Notebook test zero-shot trên kaggle với 3-5 sample Ngạn (dùng pretrained chưa fine-tune) để verify phoneme tương thích |
+| A3 | `step3_zero_shot_test_windows.ipynb` | Notebook test zero-shot trên windows local với 3-5 sample Ngạn (dùng pretrained chưa fine-tune) để verify phoneme tương thích |
 | B1 | `KAGGLE_SETUP.md` | Hướng dẫn upload dataset, settings notebook, lưu ý quota |
-| B2 | `kaggle_finetune_ngan.ipynb` | Notebook training: clone repo, install deps, mount data, override config, train, monitor, save |
+| B2 | `kaggle_finetune_ngan_lite_vi.ipynb` | Notebook training: clone repo, install deps, mount data, override config, train, monitor, save |
 | C1 | `config_ngan_kaggle.yml` | Config override (batch_size, max_len, ft_lr, freeze_modules=['style_encoder'], pretrained_model path Kaggle) |
 | D1 | `download_female_ref.py` | Trích 1 đoạn audio nữ chất lượng cao từ ViVoice HF + slot để bạn drop file riêng |
 | D2 | `nlp_generator.py` | Phase 1 với Gemini 2.0 Flash API → script.json với role ∈ {narrator, character_male, character_female} |

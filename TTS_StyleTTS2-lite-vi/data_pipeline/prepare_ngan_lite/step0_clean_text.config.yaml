@@ -1,0 +1,74 @@
+# =============================================================
+#  STEP 0: CLEAN TEXT CONFIG
+# =============================================================
+#  File config cho step0_clean_text.py
+#  Chỉnh sửa file này trước khi chạy script.
+# =============================================================
+
+# ---------- MODE ----------
+# "preview": chỉ in ra terminal preview_lines dòng đầu, KHÔNG ghi file output.
+#            Dùng để check 10-50 dòng đầu xem clean có đúng không.
+# "apply":   chạy thật, ghi file output đầy đủ.
+mode: "preview"
+
+# ---------- PREVIEW SETTINGS (chỉ áp dụng khi mode = preview) ----------
+preview_lines: 50                    # số dòng đầu để hiển thị
+preview_show_only_changed: true      # true = chỉ in dòng có thay đổi (recommend)
+                                     # false = in tất cả dòng kèm before/after
+
+# ---------- PATHS (relative tới root TTS_StyleTTS2-lite-vi/) ----------
+# Input là TEXT GỐC tiếng Việt (có dấu, chưa phonemize), từ pipeline cũ.
+input_dir: "../data/StyleTTS2_preprocess/output_dataset"
+input_files:
+  train: "filelist_train.txt"
+  val: "filelist_val.txt"
+
+# Output là TEXT ĐÃ CLEAN, sẽ là input mới cho A1 (step1_rephonemize_lite.py).
+output_dir: "./output"
+output_files:
+  train: "filelist_train_clean.txt"
+  val: "filelist_val_clean.txt"
+
+# Path tới file mapping English -> Vietnamese (relative tới folder
+# chứa script step0_clean_text.py).
+# Format file:
+#   - Dòng KHÔNG có dấu phẩy = Tier 1 keyword XÓA cả dòng (vd: "subscribe")
+#   - Dòng CÓ dấu phẩy       = Tier 2 mapping (vd: "phone, phôn")
+english_mapping_file: "english_mapping.txt"
+
+# ---------- TIER 1: EXTRA DELETE KEYWORDS ----------
+# Các từ khóa BỔ SUNG (ngoài những dòng không-dấu-phẩy trong english_mapping.txt)
+# sẽ gây xóa cả dòng. Để rỗng [] nếu không cần thêm.
+extra_delete_keywords: []
+
+# ---------- TIER 2 SETTINGS ----------
+# True = match English không phân biệt hoa thường (Honda = HONDA = honda)
+case_insensitive_mapping: true
+
+# ---------- DIGITS ----------
+# True = xóa tất cả chữ số [0-9]+ khỏi text (giữ phần còn lại của câu).
+# Đây là option (i) bạn đã chọn.
+remove_digits: true
+
+# ---------- TIER 3: UNKNOWN ENGLISH WORDS ----------
+# Action khi gặp 1 token "trông giống tiếng Anh" (chỉ chứa ASCII a-z,
+# không có dấu tiếng Việt, độ dài >= unknown_english_min_length)
+# và KHÔNG nằm trong mapping của english_mapping.txt:
+#
+#   "remove_word":  xóa từ đó khỏi câu, giữ phần còn lại (RECOMMEND - option a)
+#   "delete_line": xóa cả dòng (an toàn nhất, nhưng mất data)
+#   "keep_warn":   giữ nguyên, chỉ log warning (debug only)
+unknown_english_action: "keep_warn"
+unknown_english_min_length: 5        # chỉ check từ >= N ký tự (tránh bắt nhầm
+                                     # từ Việt ngắn không dấu như "anh", "em", "ba")
+
+# ---------- PUNCTUATION CLEANUP ----------
+# Các ký tự đặc biệt sẽ bị thay bằng space (để collapse với normalize_whitespace).
+# Bao gồm brackets [], parentheses (), *, &, %, -, _, ~, ...
+# KHÔNG bao gồm dấu câu chính tả Việt: . , ! ? : ; (giữ lại để TTS biết ngắt nghỉ).
+punctuation_to_remove: "[](){}*&%-_~|^<>=+/\\\"'"
+
+# ---------- LOGGING ----------
+# Số ký tự lạ/từ removed tối đa được liệt kê chi tiết trong log
+# (để tránh log quá dài).
+max_log_unknown_words: 50

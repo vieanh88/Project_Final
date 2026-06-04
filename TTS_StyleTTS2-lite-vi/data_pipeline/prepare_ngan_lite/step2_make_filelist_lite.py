@@ -242,6 +242,35 @@ def validate_phoneme(
             unknown.add(ch)
     return (len(unknown) == 0), unknown
 
+def normalize_phoneme_for_lite_vocab(phoneme: str) -> str:
+    """
+    Normalize phoneme sinh bởi espeak-ng để khớp vocab 189 của StyleTTS2-lite-vi.
+
+    Lý do:
+      - U+032A '̪' là combining dental bridge below, espeak-ng có thể sinh ra
+        trong các cụm như t̪/d̪/n̪, nhưng vocab lite-vi không có ký tự này.
+        Xóa nó sẽ biến t̪ -> t, d̪ -> d, n̪ -> n.
+      - '-' không nằm trong vocab. Đổi sang space để không nối dính 2 cụm phoneme.
+    """
+    if not phoneme:
+        return ""
+
+    replacements = {
+        "\u032A": "",   # '̪' combining dental bridge below
+        "-": " ",       # ASCII hyphen
+        "\u2010": " ",  # hyphen
+        "\u2011": " ",  # non-breaking hyphen
+        "\u2012": " ",  # figure dash
+        "\u2013": " ",  # en dash
+        "\u2014": " ",  # em dash
+        "\u2212": " ",  # minus sign
+    }
+
+    for src, dst in replacements.items():
+        phoneme = phoneme.replace(src, dst)
+
+    phoneme = " ".join(phoneme.split())
+    return phoneme
 
 # ============================================================
 # SECTION 6: AUDIO DURATION CHECK
@@ -341,6 +370,12 @@ def process_filelist(
 
         raw_wav_path, phoneme = parts[0].strip(), parts[1].strip()
         if not raw_wav_path or not phoneme:
+            stats["format_bad"] += 1
+            continue
+
+        # Normalize phoneme để khớp vocab 189 của StyleTTS2-lite-vi
+        phoneme = normalize_phoneme_for_lite_vocab(phoneme)
+        if not phoneme:
             stats["format_bad"] += 1
             continue
 

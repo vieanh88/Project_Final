@@ -71,7 +71,7 @@ step03:
   min_duration_s: 3.0
  
   # Thời lượng tối đa của 1 segment (giây)
-  max_duration_s: 15.0
+  max_duration_s: 12.0
  
   # Khoảng im lặng tối thiểu (ms) để cắt tại đó khi split đoạn dài
   split_on_silence_ms: 1000
