@@ -1,0 +1,87 @@
+log_dir: ./Models/Finetune
+save_freq: 1
+log_interval: 50
+device: cuda
+epochs: 20
+batch_size: 2
+max_len: 310
+pretrained_model: /kaggle/input/datasets/vieanh88/ngan-checkpoint-v6-ep12/epoch_00011.pth
+load_only_params: false
+debug: true
+data_params:
+  train_data: /kaggle/input/datasets/vieanh88/ngan-data-lite-vi/ngan-data-lite-vi/ngan_train_lite.txt
+  val_data: /kaggle/input/datasets/vieanh88/ngan-data-lite-vi/ngan-data-lite-vi/ngan_val_lite.txt
+  root_path: /kaggle/input/datasets/vieanh88/ngan-data-lite-vi/ngan-data-lite-vi/
+symbol:
+  pad: $
+  punctuation: ';:,.!?¡¿—…"«»“” '
+  letters: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+  letters_ipa: ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴøɵɸθœɶʘɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑʼʴʰʱʲʷˠˤ˞↓↑→↗↘'̩'ᵻ
+  extend: ∫̆ăη͡123456
+preprocess_params:
+  sr: 24000
+  spect_params:
+    n_fft: 2048
+    win_length: 1200
+    hop_length: 300
+training_strats:
+  freeze_modules:
+  - ''
+  ignore_modules:
+  - ''
+model_params:
+  dim_in: 64
+  hidden_dim: 512
+  max_conv_dim: 512
+  n_layer: 3
+  n_mels: 80
+  max_dur: 50
+  style_dim: 128
+  dropout: 0.2
+  ASR_params:
+    input_dim: 80
+    hidden_dim: 256
+    n_layers: 6
+    token_embedding_dim: 512
+  JDC_params:
+    num_class: 1
+    seq_len: 192
+  decoder:
+    type: hifigan
+    resblock_kernel_sizes:
+    - 3
+    - 7
+    - 11
+    upsample_rates:
+    - 10
+    - 5
+    - 3
+    - 2
+    upsample_initial_channel: 512
+    resblock_dilation_sizes:
+    - - 1
+      - 3
+      - 5
+    - - 1
+      - 3
+      - 5
+    - - 1
+      - 3
+      - 5
+    upsample_kernel_sizes:
+    - 20
+    - 10
+    - 6
+    - 4
+loss_params:
+  lambda_mel: 5.0
+  lambda_gen: 1.0
+  lambda_mono: 1.0
+  lambda_s2s: 1.0
+  lambda_F0: 1.0
+  lambda_norm: 1.0
+  lambda_dur: 1.0
+  lambda_ce: 20.0
+optimizer_params:
+  lr: 0.0001
+  ft_lr: 1.0e-05

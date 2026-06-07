@@ -10,6 +10,7 @@
 | B1 | `KAGGLE_SETUP.md` | Hướng dẫn upload dataset, settings notebook, lưu ý quota |
 | B2 | `kaggle_finetune_ngan_lite_vi.ipynb` | Notebook training: clone repo, install deps, mount data, override config, train, monitor, save |
 | C1 | `config_ngan_kaggle.yml` | Config override (batch_size, max_len, ft_lr, freeze_modules=['style_encoder'], pretrained_model path Kaggle) |
+| D0 | `inference_engine.py` | Module core: load model + 2 helper compute_style() + inference_from_phoneme(). Refactor từ A3.2 thành reusable class. Tất cả file D1-D3 + UI sẽ import từ đây. |
 | D1 | `download_female_ref.py` | Trích 1 đoạn audio nữ chất lượng cao từ ViVoice HF + slot để bạn drop file riêng |
 | D2 | `nlp_generator.py` | Phase 1 với Gemini 2.0 Flash API → script.json với role ∈ {narrator, character_male, character_female} |
 | D3 | `tts_generator.py` | Phase 2: load 2 ref audio + checkpoint Ngạn → loop sinh audio + silence padding np.zeros() → export wav |
@@ -34,16 +35,21 @@ HUST_Project/Project_Final/
     │       ├── step2_make_filelist_lite.py      ← FILE A2
     │       └── step3_zero_shot_test.ipynb       ← FILE A3
     ├── configs/
-    │   └── config_ngan_kaggle.yml               ← FILE C1
+    │   ├── config.yaml                          ← config gốc lite-vi (tải từ HF)
+    │   └── config_ngan_kaggle.yml               ← FILE C1, được tải về từ chạy kaggle B2
     ├── kaggle_notebooks/
     │   └── kaggle_finetune_ngan.ipynb           ← FILE B2
     ├── inference/
     │   ├── nlp_generator.py                     ← FILE D2
+    │   ├── inference_engine.py                  ← FILE D0
     │   ├── tts_generator.py                     ← FILE D3
     │   ├── download_female_ref.py               ← FILE D1
     │   └── evaluate_demo.py                     ← FILE E1
     ├── output/                                  ← chứa filelist_*_lite.txt sau khi A2 chạy
+    │   ├── smoke_test.wav                       ← file smoke_test của inference_engine.py
     │   ├── ngan_train_lite.txt
     │   └── ngan_val_lite.txt
+    ├── Models/                                  ← chứa file checkpoint
+    ├── StyleTTS2-lite/                          ← repo StyleTTS2-lite-vi gốc clone từ github về
     └── KAGGLE_SETUP.md                          ← FILE B1
 ```
