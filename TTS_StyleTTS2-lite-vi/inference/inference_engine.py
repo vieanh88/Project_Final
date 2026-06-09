@@ -38,8 +38,12 @@ Cách dùng:
     import soundfile as sf
     sf.write("out.wav", wav, 24000)
 
-Lệnh chạy smoke test (chạy trực tiếp file này để verify load checkpoint + synthesize 1 câu):
-python inference/inference_engine.py --checkpoint D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi\Models\checkpoints-v7-ep14\epoch_00013.pth --repo StyleTTS2-lite --config D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi\configs\config.yaml --ref D:\Documents\HUST\HUST_Project\Project_Final\data\StyleTTS2_preprocess\output_dataset\wavs\ngan_00002.wav --text "Đêm hôm ấy, trời tối đen như mực, tôi bước qua cánh cổng của trường Đại học Bách Khoa." --out output/smoke_test.wav
+Lệnh chạy smoke test (đọc checkpoint/repo/model_config/ref/text/out từ inference_config.yaml):
+    python inference/inference_engine.py --config inference/inference_config.yaml
+
+Override nhanh qua CLI (ưu tiên CLI > config > default):
+    python inference/inference_engine.py --config inference/inference_config.yaml \\
+        --no-fp16 --text "Câu test khác." --out output/smoke_test.wav
 =============================================================
 """
 
@@ -679,68 +683,65 @@ class StyleTTS2LiteVNInference:
 # ============================================================
 if __name__ == "__main__":
     import argparse
+    import time
     import soundfile as sf
 
-    parser = argparse.ArgumentParser(description="Smoke test inference engine")
-    parser.add_argument(
-        "--checkpoint", type=str, required=True,
-        help="Path tới epoch_00030.pth"
+    # Config tập trung (xem inference/config_loader.py + inference/inference_config.yaml)
+    from config_loader import (
+        DEFAULT_CONFIG_PATH, load_config, cfg_value, engine_kwargs, resolve_path,
     )
-    parser.add_argument(
-        "--repo", type=str, required=True,
-        help="Path tới folder StyleTTS2-lite clone từ github"
-    )
-    parser.add_argument(
-        "--config", type=str, required=True,
-        help="Path tới config.yaml (gốc lite-vi) hoặc config_ngan_kaggle.yml"
-    )
-    parser.add_argument(
-        "--ref", type=str, required=True,
-        help="Path tới audio reference (1 file .wav giọng Ngạn)"
-    )
-    parser.add_argument(
-        "--text", type=str,
-        default="Đêm hôm ấy, trời tối đen như mực, không một tiếng động.",
-        help="Câu test"
-    )
-    parser.add_argument(
-        "--out", type=str, default="smoke_test_output.wav",
-        help="Output wav path"
-    )
-    parser.add_argument(
-        "--no-fp16", action="store_true",
-        help="Tắt FP16 (dùng FP32, chậm hơn nhưng chính xác hơn)"
-    )
+
+    parser = argparse.ArgumentParser(description="Smoke test inference engine (D0)")
+    # File config YAML — nguồn chính của mọi đường dẫn & tham số
+    parser.add_argument("--config", type=str, default=str(DEFAULT_CONFIG_PATH),
+                        help=f"Path tới inference config YAML (default: {DEFAULT_CONFIG_PATH.name})")
+    # ---- Override CLI (None = không truyền -> dùng config -> default) ----
+    parser.add_argument("--checkpoint", type=str, default=None,
+                        help="[engine.checkpoint] path tới epoch_*.pth")
+    parser.add_argument("--repo", type=str, default=None,
+                        help="[engine.repo] folder StyleTTS2-lite")
+    parser.add_argument("--model-config", type=str, default=None,
+                        help="[engine.model_config] config.yaml KIẾN TRÚC model (khác --config)")
+    parser.add_argument("--device", type=str, default=None,
+                        help="[engine.device] auto | cuda | cpu")
+    parser.add_argument("--fp16", action=argparse.BooleanOptionalAction, default=None,
+                        help="[engine.use_fp16] --fp16 / --no-fp16")
+    parser.add_argument("--ref", type=str, default=None,
+                        help="[references.male_ref] audio reference giọng test")
+    parser.add_argument("--text", type=str, default=None,
+                        help="[smoke.text] câu test")
+    parser.add_argument("--out", type=str, default=None,
+                        help="[smoke.output] file wav output")
     args = parser.parse_args()
 
     print("=" * 60)
     print("D0 — Inference Engine SMOKE TEST")
     print("=" * 60)
 
-    engine = StyleTTS2LiteVNInference(
-        checkpoint_path=args.checkpoint,
-        repo_root=args.repo,
-        config_path=args.config,
-        device="auto",
-        use_fp16=not args.no_fp16,
-    )
+    # ===== Resolve config (CLI > YAML > default) =====
+    cfg = load_config(args.config)
+    eng_kwargs = engine_kwargs(cfg, args)
+    ref_path = resolve_path(cfg_value(cfg, "references", "male_ref", args.ref))
+    text = cfg_value(cfg, "smoke", "text", args.text)
+    out_path = resolve_path(cfg_value(cfg, "smoke", "output", args.out))
+
+    engine = StyleTTS2LiteVNInference(**eng_kwargs)
 
     print("\nEngine info:")
     for k, v in engine.info().items():
         print(f"  {k:20s}: {v}")
 
-    print(f"\nText  : {args.text}")
-    phoneme = engine.text_to_phoneme(args.text)
+    print(f"\nText  : {text}")
+    phoneme = engine.text_to_phoneme(text)
     print(f"Phn   : {phoneme}")
 
-    print(f"\nCompute style từ: {args.ref}")
-    style = engine.compute_style(args.ref, denoise=0.3, split_dur=2.0)
+    print(f"\nCompute style từ: {ref_path}")
+    style = engine.compute_style(str(ref_path), denoise=0.3, split_dur=2.0)
     print(f"  Style shape: {tuple(style.shape)}")
 
     print(f"\nSynthesize...")
-    import time
     t0 = time.time()
-    wav = engine.synthesize(args.text, style)
+    wav = engine.synthesize(text, style)
     elapsed = time.time() - t0
     audio_dur = len(wav) / SR
     rtf = elapsed / audio_dur
@@ -748,6 +749,7 @@ if __name__ == "__main__":
     print(f"  Time      : {elapsed:.2f}s")
     print(f"  RTF       : {rtf:.3f}x  (lower = faster than realtime)")
 
-    sf.write(args.out, wav, SR)
-    print(f"\n✅ Saved: {args.out}")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(str(out_path), wav, SR)
+    print(f"\n✅ Saved: {out_path}")
     print("Mở file để nghe — nếu giọng giống Ngạn → fine-tune thành công.")

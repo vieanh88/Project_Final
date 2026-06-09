@@ -56,4 +56,4 @@ TTS_StyleTTS2/StyleTTS2/Models/VietnameseExpressive/tensorboard/
 # Bỏ qua file checkpoint của model
 TTS_StyleTTS2/StyleTTS2/Models/VietnameseBase/*.pth
 TTS_StyleTTS2/StyleTTS2/Models/VietnameseExpressive/*.pth
-TTS_StyleTTS2-lite-vi/Models
+TTS_StyleTTS2-lite-vi/kaggle_models

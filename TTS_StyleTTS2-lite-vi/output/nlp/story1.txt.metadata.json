@@ -1,0 +1,17 @@
+{
+  "input_file": "D:\\Documents\\HUST\\HUST_Project\\Project_Final\\TTS_StyleTTS2-lite-vi\\data\\raw_stories\\story1.txt",
+  "output_file": "D:\\Documents\\HUST\\HUST_Project\\Project_Final\\TTS_StyleTTS2-lite-vi\\output\\nlp\\story1.json",
+  "model": "gemini-2.5-flash-lite",
+  "timestamp": "2026-06-09T17:12:37.999810",
+  "stats": {
+    "input_chars": 770,
+    "input_words": 172,
+    "n_chunks": 1,
+    "n_lines": 16,
+    "role_distribution": {
+      "narrator": 16
+    },
+    "estimated_audio_duration_sec": 76.4,
+    "estimated_audio_duration_min": 1.3
+  }
+}

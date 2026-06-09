@@ -15,16 +15,17 @@ Tên file vốn là 'download_female_ref' theo roadmap ban đầu (định downl
 từ ViVoice). Bạn đã chọn option "tự cung cấp", nên file thực chất là
 VERIFY script. Giữ tên cũ cho khớp roadmap.
 
-Cách dùng (chạy từ root TTS_StyleTTS2-lite-vi/):
+Cách dùng (đường dẫn ref + engine đọc từ inference_config.yaml, section `references:`/`engine:`):
 
-    # Chỉ test female ref
-    python inference/download_female_ref.py \\
-        --female-ref path/to/female.wav
+    # Test female (+ male nếu references.male_ref có) — load model + render
+    python inference/download_female_ref.py --config inference/inference_config.yaml
 
-    # Test cả male + female để so sánh
-    python inference/download_female_ref.py \\
-        --female-ref path/to/female.wav \\
-        --male-ref data/.../ngan_00002.wav
+    # Chỉ health check (nhanh, không load model)
+    python inference/download_female_ref.py --config inference/inference_config.yaml --skip-synthesize
+
+    # Override nhanh file female qua CLI (ưu tiên CLI > config > default)
+    python inference/download_female_ref.py --config inference/inference_config.yaml \\
+        --female-ref D:/path/khac/female.wav
 
 Output: 3-6 file .wav trong output/female_ref_test/
 =============================================================
@@ -40,16 +41,18 @@ import numpy as np
 import soundfile as sf
 import torch
 
+# Tham số & đường dẫn tập trung trong inference_config.yaml (xem config_loader.py)
+from config_loader import (
+    SCRIPT_DIR,
+    PROJECT_ROOT,
+    DEFAULT_CONFIG_PATH,
+    load_config,
+    cfg_value,
+    engine_kwargs,
+    reference_path,
+)
 
-# Project layout (theo README.md mới của user)
-SCRIPT_DIR = Path(__file__).resolve().parent          # inference/
-PROJECT_ROOT = SCRIPT_DIR.parent                       # TTS_StyleTTS2-lite-vi/
 OUTPUT_DIR = PROJECT_ROOT / "output" / "female_ref_test"
-
-# Default paths (có thể override qua CLI)
-DEFAULT_REPO = PROJECT_ROOT / "StyleTTS2-lite"
-DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "config.yaml"
-DEFAULT_CHECKPOINT = PROJECT_ROOT / "Models" / "checkpoints-v7-ep14" / "epoch_00013.pth"
 
 
 # 3 câu test đa dạng — kể chuyện / hội thoại nữ / cảm thán
@@ -310,53 +313,46 @@ def main():
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    # File config YAML — nguồn chính của mọi đường dẫn & tham số
     parser.add_argument(
-        "--female-ref",
-        type=str,
-        required=True,
-        help="Đường dẫn tới file .wav giọng nữ bạn cung cấp",
+        "--config", type=str, default=str(DEFAULT_CONFIG_PATH),
+        help=f"Path tới inference config YAML (default: {DEFAULT_CONFIG_PATH.name})",
     )
-    parser.add_argument(
-        "--male-ref",
-        type=str,
-        default=None,
-        help="(Optional) Đường dẫn file .wav giọng Ngạn để so sánh",
-    )
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default=str(DEFAULT_CHECKPOINT),
-        help=f"Path tới epoch_*.pth (default: {DEFAULT_CHECKPOINT})",
-    )
-    parser.add_argument(
-        "--repo",
-        type=str,
-        default=str(DEFAULT_REPO),
-        help=f"Path tới folder StyleTTS2-lite (default: {DEFAULT_REPO})",
-    )
-    parser.add_argument(
-        "--config",
-        type=str,
-        default=str(DEFAULT_CONFIG),
-        help=f"Path tới config.yaml (default: {DEFAULT_CONFIG})",
-    )
-    parser.add_argument(
-        "--skip-synthesize",
-        action="store_true",
-        help="Chỉ chạy health check, không load model + render audio (tốc độ nhanh)",
-    )
+    # ---- Override CLI (None = không truyền -> dùng config -> default) ----
+    parser.add_argument("--female-ref", type=str, default=None,
+                        help="[references.female_ref] file .wav giọng nữ")
+    parser.add_argument("--male-ref", type=str, default=None,
+                        help="[references.male_ref] file .wav giọng Ngạn để so sánh")
+    parser.add_argument("--checkpoint", type=str, default=None,
+                        help="[engine.checkpoint] path tới epoch_*.pth")
+    parser.add_argument("--repo", type=str, default=None,
+                        help="[engine.repo] folder StyleTTS2-lite")
+    parser.add_argument("--model-config", type=str, default=None,
+                        help="[engine.model_config] config.yaml KIẾN TRÚC model (khác --config)")
+    parser.add_argument("--device", type=str, default=None,
+                        help="[engine.device] auto | cuda | cpu")
+    parser.add_argument("--fp16", action=argparse.BooleanOptionalAction, default=None,
+                        help="[engine.use_fp16] --fp16 / --no-fp16")
+    parser.add_argument("--skip-synthesize", action=argparse.BooleanOptionalAction, default=None,
+                        help="[verify_ref.skip_synthesize] chỉ health check, không load model")
     args = parser.parse_args()
-
-    female_path = Path(args.female_ref).resolve()
-    male_path = Path(args.male_ref).resolve() if args.male_ref else None
 
     print("=" * 60)
     print("D1 — VERIFY FEMALE REFERENCE AUDIO")
     print("=" * 60)
+
+    # ===== Resolve config (CLI > YAML > default) =====
+    cfg = load_config(args.config)
+
+    female_path = reference_path(cfg, args, "female_ref")
+    male_path = reference_path(cfg, args, "male_ref")
+    skip_synth = cfg_value(cfg, "verify_ref", "skip_synthesize", args.skip_synthesize)
+    eng_kwargs = engine_kwargs(cfg, args)
+
     print(f"Project root  : {PROJECT_ROOT}")
     print(f"Female ref    : {female_path}")
     print(f"Male ref      : {male_path or '(skip)'}")
-    print(f"Skip synth    : {args.skip_synthesize}")
+    print(f"Skip synth    : {skip_synth}")
 
     # ===== Step 1: Health check =====
     female_report = health_check(female_path)
@@ -376,7 +372,7 @@ def main():
         print(f"      ffmpeg -i input.mp3 -ar 24000 -ac 1 -sample_fmt s16 female_ref.wav")
         sys.exit(1)
 
-    if args.skip_synthesize:
+    if skip_synth:
         print(f"\n✅ Health check xong (skip synthesize theo flag).")
         sys.exit(0)
 
@@ -394,13 +390,7 @@ def main():
         sys.exit(1)
 
     try:
-        engine = StyleTTS2LiteVNInference(
-            checkpoint_path=args.checkpoint,
-            repo_root=args.repo,
-            config_path=args.config,
-            device="auto",
-            use_fp16=True,
-        )
+        engine = StyleTTS2LiteVNInference(**eng_kwargs)
     except Exception as e:
         print(f"❌ Engine init FAIL: {type(e).__name__}: {e}")
         sys.exit(1)

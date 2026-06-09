@@ -1,0 +1,89 @@
+# =============================================================
+#   INFERENCE CONFIG — Chỉnh sửa MỌI đường dẫn & tham số ở đây
+# =============================================================
+# Cách chạy (chỉ cần trỏ tới file config này):
+#     python inference/inference_engine.py    --config inference/inference_config.yaml   # D0 smoke test
+#     python inference/download_female_ref.py --config inference/inference_config.yaml   # D1 verify ref
+#     python inference/nlp_generator.py        --config inference/inference_config.yaml   # D2 text -> script.json
+#     python inference/tts_generator.py        --config inference/inference_config.yaml   # D3 script.json -> audiobook
+#
+# Ưu tiên giá trị:  CLI  >  file config này  >  default trong code
+#     (vd truyền thêm --checkpoint ... ở dòng lệnh sẽ ĐÈ giá trị engine.checkpoint bên dưới)
+#
+# Quy ước ĐƯỜNG DẪN:
+#     - Dùng / cho gọn (Windows vẫn hiểu). Có thể dùng đường dẫn tuyệt đối D:/... hoặc tương đối.
+#     - Đường dẫn TƯƠNG ĐỐI được tính từ thư mục:  TTS_StyleTTS2-lite-vi/
+#       (vd "configs/config.yaml" = TTS_StyleTTS2-lite-vi/configs/config.yaml)
+# =============================================================
+
+
+# -------------------------------------------------------------
+# ENGINE — model TTS (dùng chung cho D0 / D1 / D3)
+# -------------------------------------------------------------
+engine:
+  # Checkpoint fine-tuned (.pth) đang dùng
+  checkpoint: StyleTTS2-lite/Models/Finetune/epoch_00025.pth
+  # Thư mục source code lite-vi (chứa models.py, Modules/, meldataset.py)
+  repo: StyleTTS2-lite
+  # Config KIẾN TRÚC model (key 'symbol' + 'model_params') — KHÁC file này
+  model_config: configs/config.yaml
+  # auto = tự chọn cuda nếu có, ngược lại cpu. Hoặc ép: cuda / cpu
+  device: auto
+  # FP16 autocast: true giảm ~50% VRAM (hợp 3050Ti 4GB). false = FP32 chính xác hơn nhưng chậm
+  use_fp16: true
+
+
+# -------------------------------------------------------------
+# REFERENCES — 2 file audio giọng mẫu
+# -------------------------------------------------------------
+references:
+  # Giọng Ngạn (nam) — dùng cho role narrator + character_male
+  male_ref: StyleTTS2-lite/Models/references/male_reference.wav
+  # Giọng nữ — dùng cho role character_female. (Mặc định nằm ngoài project, đổi nếu cần)
+  female_ref: StyleTTS2-lite/Models/references/female_reference.wav
+
+
+# -------------------------------------------------------------
+# D2 — NLP GENERATOR (nlp_generator.py): text truyện -> script.json
+# -------------------------------------------------------------
+nlp:
+  input: data/raw_stories/test_ghost_story.txt    # file .txt truyện ma đầu vào
+  output: null                                    # null = tự sinh output/nlp/<tên-input>.json
+  model: gemini-2.5-flash                         # tên model Gemini
+  env: ../.env                                    # file .env chứa GEMINI_API_KEY (= Project_Final/.env)
+  chunk_size: 8000                                # số ký tự tối đa mỗi chunk gửi Gemini
+  max_retries: 3                                  # số lần retry khi API fail
+  thinking: true                                  # false = tắt thinking, nhanh hơn ~2x
+  dry_run: false                                  # true = chỉ in prompt, KHÔNG gọi API
+
+
+# -------------------------------------------------------------
+# D3 — TTS GENERATOR (tts_generator.py): script.json -> audiobook .wav
+# -------------------------------------------------------------
+tts:
+  script: output/nlp/test_ghost_story.json        # input script.json (output của D2)
+  output: output/audiobooks/test_ghost_story.wav  # file audiobook .wav xuất ra
+  narrator_speed: 1.0                             # tốc độ role narrator (thử 0.9 cho kể chuyện dramatic)
+  character_speed: 1.0                            # tốc độ role character_male + character_female
+  denoise: 0.3                                    # compute_style: % blend noisereduce (0.0 - 1.0)
+  split_dur: 2.0                                  # compute_style: chia ref thành đoạn N giây để avg style
+  save_lines: false                               # true = xuất thêm từng line .wav riêng (debug)
+  skip_on_error: true                             # true = bỏ qua line lỗi & tiếp tục; false = dừng ngay
+  normalize: true                                 # true = normalize peak về 0.95 tránh clipping
+
+
+# -------------------------------------------------------------
+# D1 — VERIFY FEMALE REF (download_female_ref.py)
+#   (Dùng references.male_ref / references.female_ref ở trên)
+# -------------------------------------------------------------
+verify_ref:
+  skip_synthesize: false   # true = chỉ chạy health check (nhanh), không load model + render
+
+
+# -------------------------------------------------------------
+# D0 — SMOKE TEST (chạy trực tiếp inference_engine.py)
+#   (Dùng engine.* ở trên + references.male_ref làm giọng test)
+# -------------------------------------------------------------
+smoke:
+  text: "Đêm hôm ấy, trời tối đen như mực, không một tiếng động."
+  output: output/smoke_test.wav

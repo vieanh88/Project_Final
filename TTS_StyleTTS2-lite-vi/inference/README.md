@@ -325,6 +325,3 @@ Mở folder `output/female_ref_test/` và nghe 6 file `.wav` (3 female + 3 male)
    - ⚠️ Nghe được nhưng có issue (vd: hơi giống Ngạn, không rõ giới tính) → cần thử file nữ khác
    - ❌ Không phải giọng nữ / méo nặng / không nói được tiếng Việt → có vấn đề khác
 
-Nếu kết quả ✅ → tôi viết **D2 (`nlp_generator.py`)** — Gemini 2.0 Flash API → `script.json` với phân vai narrator/character_male/character_female + `pause_after_ms`.
-
-Lưu ý nhỏ: trước khi vào D2 bạn nên có sẵn **Gemini API key** (https://aistudio.google.com/apikey — 1 phút, miễn phí).
