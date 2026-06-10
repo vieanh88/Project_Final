@@ -1,0 +1,4 @@
+# Web UI deps (các deps inference như torch/librosa/google-genai cài riêng theo inference/)
+fastapi
+uvicorn[standard]
+python-multipart

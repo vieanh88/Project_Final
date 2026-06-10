@@ -110,7 +110,7 @@ Nhiệm vụ: phân tích văn bản truyện ma được cung cấp và chuyể
 2. Câu gốc dài > 25 từ -> CẮT thành 2-3 câu, ngắt ở dấu phẩy hoặc liên từ.
 3. Câu gốc quá ngắn (< 5 từ) -> GIỮ NGUYÊN nếu nó là câu cảm thán/hỏi gọn. Không gộp.
 4. GIỮ TOÀN BỘ NỘI DUNG văn bản gốc, không tự thêm/bớt/diễn giải.
-5. Loại bỏ chữ số (vd "1990" -> "một nghìn chín trăm chín mươi" hoặc bỏ đi nếu không quan trọng).
+5. Loại bỏ số (vd "1990" -> "một nghìn chín trăm chín mươi" hoặc bỏ đi nếu không quan trọng).
 
 ## QUY TẮC GÁN ROLE
 - "narrator": lời dẫn chuyện (mô tả cảnh, hành động, suy nghĩ ngầm), KHÔNG phải lời thoại.
@@ -121,9 +121,9 @@ Nhiệm vụ: phân tích văn bản truyện ma được cung cấp và chuyể
 ## QUY TẮC PAUSE_AFTER_MS (kiến tạo không khí kinh dị)
 - Câu thường (kết thúc bằng . , ? ! ở GIỮA đoạn): 500-800 ms.
 - Câu nối tiếp ý (kết thúc bằng dấu phẩy nội bộ nếu được giữ): 200-300 ms.
-- Câu CHUYỂN CẢNH (kết thúc 1 phân đoạn, mở cảnh mới): 1500-2000 ms.
-- Câu CAO TRÀO / RÙNG RỢN / hé lộ sự kiện kinh dị: 2000-2500 ms.
-- Câu CUỐI ĐOẠN văn bản: 2500-3000 ms.
+- Câu CHUYỂN CẢNH (kết thúc 1 phân đoạn, mở cảnh mới): 800-1000 ms.
+- Câu CAO TRÀO / RÙNG RỢN / hé lộ sự kiện kinh dị: 800-1000 ms.
+- Câu CUỐI ĐOẠN văn bản: 1000-1500 ms.
 
 ## EXAMPLE
 Input:
@@ -131,11 +131,11 @@ Input:
 
 Output JSON:
 [
-  {"id": 1, "role": "narrator", "text": "Tôi mở cửa, một cơn gió lạnh ùa vào.", "pause_after_ms": 1500},
-  {"id": 2, "role": "narrator", "text": "Bỗng nhiên, từ trong góc tối, có giọng nói thì thầm:", "pause_after_ms": 800},
-  {"id": 3, "role": "character_male", "text": "Đừng quay lại...", "pause_after_ms": 2200},
-  {"id": 4, "role": "narrator", "text": "Tôi sợ hãi, cô gái bên cạnh thì thào:", "pause_after_ms": 700},
-  {"id": 5, "role": "character_female", "text": "Anh ơi, có ai đó trong phòng.", "pause_after_ms": 2500}
+  {"id": 1, "role": "narrator", "text": "Tôi mở cửa, một cơn gió lạnh ùa vào.", "pause_after_ms": 500},
+  {"id": 2, "role": "narrator", "text": "Bỗng nhiên, từ trong góc tối, có giọng nói thì thầm:", "pause_after_ms": 500},
+  {"id": 3, "role": "character_male", "text": "Đừng quay lại...", "pause_after_ms": 800},
+  {"id": 4, "role": "narrator", "text": "Tôi sợ hãi, cô gái bên cạnh thì thào:", "pause_after_ms": 500},
+  {"id": 5, "role": "character_female", "text": "Anh ơi, có ai đó trong phòng.", "pause_after_ms": 1500}
 ]
 
 ## VĂN BẢN TRUYỆN MA CẦN XỬ LÝ

@@ -173,9 +173,9 @@ python inference/download_female_ref.py --female-ref female_voice.wav --male-ref
 
 ------
 
-## Tóm tắt file D1
+# Tóm tắt file D1
 
-### Điểm thiết kế chính
+## Điểm thiết kế chính
 
 1. **3 stage testing — fail fast**:
    - Stage 1: Health check (không cần model) → fail sớm nếu file bad
@@ -216,9 +216,9 @@ Trong inference pipeline cuối, **chất lượng giọng character_female ph�
 
 ---
 
-## Cách test D1
+# Cách test D1
 
-### Bước 1: Chuẩn bị file giọng nữ
+## Bước 1: Chuẩn bị file giọng nữ
 
 Bạn cần 1 file `.wav` giọng nữ tiếng Việt, lý tưởng:
 - 5-15 giây
@@ -238,7 +238,7 @@ ffmpeg -i input.mp3 -ar 24000 -ac 1 -sample_fmt s16 female_ref.wav
 
 Đặt file ở vị trí dễ nhớ, ví dụ: `D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi\Models\references\female_ref.wav`
 
-### Bước 2: Copy D1 vào đúng folder
+## Bước 2: Copy D1 vào đúng folder
 
 ```
 TTS_StyleTTS2-lite-vi/inference/download_female_ref.py
@@ -246,7 +246,7 @@ TTS_StyleTTS2-lite-vi/inference/download_female_ref.py
 
 (Cùng folder với `inference_engine.py`.)
 
-### Bước 3: Chạy chỉ health check trước (5 giây)
+## Bước 3: Chạy chỉ health check trước (5 giây)
 
 ```bash
 cd D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi
@@ -258,7 +258,7 @@ python inference/download_female_ref.py ^
 
 **Mong đợi**: Health check passes hoặc warnings nhẹ. Nếu errors → fix file rồi chạy lại.
 
-### Bước 4: Chạy full test (load model + render audio, ~1-2 phút)
+## Bước 4: Chạy full test (load model + render audio, ~1-2 phút)
 
 ```bash
 python inference/download_female_ref.py ^
@@ -303,7 +303,7 @@ MALE (Ngạn): ✅ Pass. 3 sample đã render.
 Output folder: D:\...\TTS_StyleTTS2-lite-vi\output\female_ref_test
 ```
 
-### Bước 5: Nghe đánh giá
+## Bước 5: Nghe đánh giá
 
 Mở folder `output/female_ref_test/` và nghe 6 file `.wav` (3 female + 3 male). Quan sát:
 
@@ -314,14 +314,346 @@ Mở folder `output/female_ref_test/` và nghe 6 file `.wav` (3 female + 3 male)
 
 ---
 
-## Tín hiệu báo lại cho tôi
+# Tóm tắt file D2
 
-**Sau khi chạy xong, gửi tôi:**
+## Điểm thiết kế chính
 
-1. **Health check output** (copy log)
-2. **Synthesize stats**: RTF của từng câu? Có sample nào fail không?
-3. **Đánh giá audio**:
-   - ✅ Giọng nữ rõ ràng + khác biệt với Ngạn → PASS → đi tiếp D2
-   - ⚠️ Nghe được nhưng có issue (vd: hơi giống Ngạn, không rõ giới tính) → cần thử file nữ khác
-   - ❌ Không phải giọng nữ / méo nặng / không nói được tiếng Việt → có vấn đề khác
+1. **SDK mới `google-genai`** (KHÔNG phải `google-generativeai` đã deprecated). Đã verify qua research là API hiện tại.
 
+2. **Model `gemini-2.5-flash`** (không phải 2.0 Flash đã shutdown). Free tier: 1500 RPD, 10 RPM, 250K TPM — quá dư cho 1 truyện ma (~3-5 calls).
+
+3. **Structured output qua Pydantic schema** — Gemini đảm bảo trả về JSON đúng format. **KHÔNG cần** parse markdown ```json``` hay regex extract. Validation hai tầng: server-side (Gemini) + client-side (Pydantic).
+
+4. **Master prompt bằng tiếng Việt** với:
+   - 5 quy tắc phân câu chi tiết
+   - 4 quy tắc gán role (nhấn mạnh: nếu không chắc giới tính → mặc định `character_male` vì giọng chính là Ngạn)
+   - 5 mức pause_after_ms (câu thường, câu nối, chuyển cảnh, cao trào, cuối đoạn) — match đúng tài liệu thiết kế ban đầu của bạn
+   - 1 few-shot example đầy đủ
+
+5. **Thinking mode tắt mặc định**: `gemini-2.5-flash` mặc định bật thinking → chậm gấp 2-3x cho task này (không cần reasoning sâu). Có flag `--no-thinking` (default) để override.
+
+6. **Chunking cho truyện dài**: chia theo paragraph, không cắt giữa câu. Mặc định 8000 chars/chunk. Sau khi merge, re-assign ID liên tục từ 1.
+
+7. **Retry exponential backoff**: 3 lần với delay 2s/4s/8s. Nếu 1 chunk fail hoàn toàn → skip + tiếp tục các chunk khác (không crash cả pipeline).
+
+8. **2 output files**:
+   - `script.json` — array các lines (đúng spec cho D3)
+   - `script.metadata.json` — meta info riêng (model, timestamp, stats, ước tính duration audio)
+
+9. **Dry-run mode**: in prompt sample không gọi API → bạn check prompt OK trước khi tốn quota.
+
+---
+
+# Cách test D2
+
+## Bước 1: Chuẩn bị file truyện ma test
+
+Tạo file `data/raw_stories/test_ghost_story.txt` (hoặc bất kỳ vị trí nào). Nội dung mẫu (200-500 từ là đủ để test):
+
+```
+Đêm hôm ấy, trời tối đen như mực. Cô gái trẻ tên Lan ngồi một mình trong căn nhà cũ kỹ ở ngoại ô Hà Nội. Bỗng nhiên, từ trong góc phòng, có giọng nói thì thầm:
+
+"Đừng quay lại..."
+
+Lan giật mình, tim đập thình thịch. Cô bước nhẹ về phía cửa, rồi gọi: "Ai đó? Có ai trong nhà không?"
+
+Im lặng. Chỉ có tiếng gió rít qua khe cửa.
+
+Bỗng một bàn tay lạnh ngắt chạm vào vai Lan. Cô quay lại, và thấy một bóng đen đứng sau lưng.
+
+"Em ơi, anh đã chờ em rất lâu rồi..."
+```
+
+Lưu encoding UTF-8 (Notepad: File → Save As → Encoding: UTF-8).
+
+## Bước 2: Cài deps
+
+```bash
+pip install google-genai python-dotenv pydantic
+```
+
+## Bước 3: Verify .env đã có API key
+
+File `D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi\.env`:
+```
+GEMINI_API_KEY=AQ.xxxxxxxxxxxxxxxxxx
+```
+
+## Bước 4: Dry-run trước để check prompt
+
+```bash
+cd D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi
+
+python inference\nlp_generator.py ^
+  --input data\raw_stories\test_ghost_story.txt ^
+  --output output\scripts\test_ghost.json ^
+  --dry-run
+```
+
+→ Sẽ in prompt đầy đủ ra terminal để bạn review. KHÔNG tốn API quota.
+
+## Bước 5: Chạy thật
+
+```bash
+python inference\nlp_generator.py ^
+  --input data\raw_stories\test_ghost_story.txt ^
+  --output output\scripts\test_ghost.json
+```
+
+## Bước 6: Mong đợi output
+
+```
+============================================================
+D2 — NLP GENERATOR (Gemini -> script.json)
+============================================================
+Input file  : D:\...\test_ghost_story.txt
+Output file : D:\...\output\scripts\test_ghost.json
+Model       : gemini-2.5-flash
+Thinking    : ON (default)
+
+[1/5] Reading input text...
+  Length: 612 chars, 124 words
+
+[2/5] Chunking (max 8000 chars/chunk)...
+  1 chunk(s)
+
+[3/5] Setup Gemini client...
+  Loaded .env từ: D:\...\.env
+  API key: AQ.xxxxx...xxxx (length 39)
+
+[4/5] Calling Gemini API (1 chunks)...
+
+  Chunk 1/1  (612 chars)
+    [Attempt 1/3] Calling gemini-2.5-flash...
+    ✅ Response trong 4.2s
+    Sinh ra 12 script lines
+
+[5/5] Post-process + save...
+
+============================================================
+✅ SUCCESS
+============================================================
+  Script  : D:\...\output\scripts\test_ghost.json
+  Metadata: D:\...\output\scripts\test_ghost.metadata.json
+
+  Stats:
+    Lines           : 12
+    Roles           : {'narrator': 8, 'character_female': 2, 'character_male': 2}
+    Est. audio dur. : 56.4s (0.9 min)
+
+  Preview 3 dòng đầu:
+    [  1] [narrator          ] [1500ms] Đêm hôm ấy, trời tối đen như mực.
+    [  2] [narrator          ] [ 800ms] Cô gái trẻ tên Lan ngồi một mình trong căn nhà cũ kỹ ở ngoại ô Hà Nội.
+    [  3] [narrator          ] [ 800ms] Bỗng nhiên, từ trong góc phòng, có giọng nói thì thầm:
+    ...
+```
+
+### Bước 7: Mở `script.json` để review
+
+```json
+[
+  {
+    "id": 1,
+    "role": "narrator",
+    "text": "Đêm hôm ấy, trời tối đen như mực.",
+    "pause_after_ms": 1500
+  },
+  {
+    "id": 2,
+    "role": "narrator",
+    "text": "Cô gái trẻ tên Lan ngồi một mình trong căn nhà cũ kỹ ở ngoại ô Hà Nội.",
+    "pause_after_ms": 800
+  },
+  ...
+  {
+    "id": 4,
+    "role": "character_male",
+    "text": "Đừng quay lại...",
+    "pause_after_ms": 2200
+  },
+  {
+    "id": 6,
+    "role": "character_female",
+    "text": "Ai đó? Có ai trong nhà không?",
+    "pause_after_ms": 800
+  },
+  ...
+]
+```
+
+**Kiểm tra**:
+- ID liên tục từ 1
+- Role hợp lý (Lan = character_female, "anh đã chờ em" = character_male)
+- Pause hợp lý cho từng câu
+- Text không có chữ số/markdown
+
+---
+
+# Tóm tắt file D3
+
+## Điểm thiết kế chính
+
+1. **Class `AudiobookSynthesizer`** — wrapper sạch sẽ quanh engine:
+   - Init 1 lần: load 2 styles vào dict `{role → style_tensor}`
+   - `synthesize_line(text, role)` — render 1 câu
+   - `synthesize_script(script)` — loop full script + chèn silence + concat
+
+2. **Logic CHÍNH XÁC theo PDF gốc của bạn** (Phase 2 Bước 3):
+   ```python
+   for line in script:
+       wav = engine.synthesize(text, style[role])
+       audio_chunks.append(wav)
+       silence = np.zeros(int(pause_after_ms/1000 * 24000), dtype=float32)
+       audio_chunks.append(silence)
+   final_wav = np.concatenate(audio_chunks)
+   ```
+   → Silence padding mathematical bằng `np.zeros` → KHÔNG có nhiễu/breath, đúng triết lý "tĩnh mịch chuẩn xác phim kinh dị".
+
+3. **3 trạng thái xử lý line**:
+   - `ok` — synthesize thành công, append wav
+   - `skipped_empty` — text rỗng → chỉ chèn silence (giữ timing)
+   - `failed` — exception → chèn 200ms silence ngắn + log error + tiếp tục (default behavior, có flag tắt)
+
+4. **Memory hygiene cho 3050Ti 4GB**: `torch.cuda.empty_cache()` mỗi 10 lines. Audiobook 100 lines sẽ tự clean cache 10 lần.
+
+5. **Speed per role configurable**: 
+   - Default: tất cả 1.0
+   - User có thể thử `--narrator-speed 0.9` cho dramatic kể chuyện
+   - Engine D0 đã accept `speed` arg trong `synthesize()`
+
+6. **3 output files**:
+   - `audiobook.wav` — file chính, 24kHz mono float32
+   - `audiobook.metadata.json` — metadata + per-line stats (đầy đủ debug info)
+   - `audiobook_lines/line_XXXX_role.wav` — optional, từng line riêng nếu `--save-lines`
+
+7. **Normalize peak về 0.95** (tránh clipping khi mix với silence). Có flag `--no-normalize` nếu cần raw.
+
+8. **Progress bar tqdm** với postfix hiển thị id + role + thời gian — dễ debug nếu thấy 1 line tốn quá lâu.
+
+9. **Validation đầu vào nghiêm ngặt**:
+   - script.json phải là array (catch case user nhầm với .metadata.json)
+   - Mỗi item phải có 4 fields `id, role, text, pause_after_ms`
+   - 2 reference files phải tồn tại
+
+10. **Summary cuối cùng**: in đầy đủ stats + role distribution + RTF + cảnh báo failed lines (top 10).
+
+---
+
+# Cách test D3
+
+## Bước 1: Đảm bảo có đủ inputs
+
+```
+TTS_StyleTTS2-lite-vi/
+├── output/scripts/test_ghost.json              ← từ D2
+├── Models/checkpoints-v7-ep14/epoch_00013.pth  ← checkpoint fine-tuned
+├── Models/references/female_ref.wav             ← từ D1 (file giọng nữ bạn cung cấp)
+├── configs/config.yaml                          ← config gốc
+└── inference/
+    ├── inference_engine.py    ← D0
+    └── tts_generator.py        ← D3 (vừa tạo)
+```
+
+Male ref dùng lại path trong dataset Ngạn đã clean:
+```
+D:\Documents\HUST\HUST_Project\Project_Final\data\StyleTTS2_preprocess\output_dataset\wavs\ngan_00002.wav
+```
+
+## Bước 2: Cài deps thêm
+
+```bash
+pip install tqdm
+```
+
+(Các deps khác đã có từ D0/D1/D2.)
+
+## Bước 3: Chạy
+
+```bash
+cd D:\Documents\HUST\HUST_Project\Project_Final\TTS_StyleTTS2-lite-vi
+
+python inference\tts_generator.py ^
+  --script output\scripts\test_ghost.json ^
+  --male-ref D:\Documents\HUST\HUST_Project\Project_Final\data\StyleTTS2_preprocess\output_dataset\wavs\ngan_00002.wav ^
+  --female-ref Models\references\female_ref.wav ^
+  --output output\audiobooks\test_ghost.wav ^
+  --save-lines
+```
+
+(`--save-lines` để debug: nếu output cuối có chỗ kỳ, bạn nghe được từng line riêng để locate.)
+
+## Bước 4: Mong đợi output
+
+```
+============================================================
+D3 — TTS GENERATOR (Audiobook synthesis)
+============================================================
+Script      : ...\output\scripts\test_ghost.json
+Male ref    : ...\ngan_00002.wav
+Female ref  : ...\female_ref.wav
+Output      : ...\output\audiobooks\test_ghost.wav
+...
+
+[1/5] Loading script...
+  Loaded 12 lines
+
+[2/5] Loading inference engine...
+[INFO] Device       : cuda
+[INFO] FP16 autocast: True
+...
+[INFO] ✅ Inference engine ready.
+
+[3/5] Building AudiobookSynthesizer + computing styles...
+  Computing male style from: ngan_00002.wav...
+    shape=(1, 128), time=1.23s
+  Computing female style from: female_ref.wav...
+    shape=(1, 128), time=0.98s
+
+[4/5] Synthesizing audiobook...
+
+  Synthesizing 12 lines...
+  Lines: 100%|████████████| 12/12 [00:08<00:00, id=12 narrator 0.6s]
+
+  Concatenating 24 chunks...
+
+[5/5] Saving outputs...
+  Audiobook : ...\test_ghost.wav  (3.4 MB)
+  Metadata  : ...\test_ghost.metadata.json
+  Per-line  : ...\test_ghost_lines  (12 files)
+
+  Lines total       : 12
+    OK              : 12
+    Failed          : 0
+    Empty (skipped) : 0
+  Roles distribution: {'narrator': 8, 'character_female': 2, 'character_male': 2}
+  Total speech      : 36.5s
+  Total audio out   : 56.2s (0.94 min)
+  Total synth time  : 8.4s
+  Overall RTF       : 0.230x (lower = faster than realtime)
+
+============================================================
+✅ AUDIOBOOK SYNTHESIS COMPLETE
+============================================================
+  Wall time   : 11.2s
+  Audio dur   : 56.2s (0.94 min)
+  Real-time x : 5.02x (audio_dur / synth_time)
+
+👉 Mở file: ...\test_ghost.wav
+```
+
+## Bước 5: Nghe đánh giá
+
+Mở `test_ghost.wav`. Đánh giá theo 5 tiêu chí:
+
+1. **Mạch chảy tự nhiên**: speech → silence → speech có khớp không, có "cắt cụt" không?
+2. **Khoảng lặng dramatic**: chỗ pause 1500-2500ms có cảm giác kinh dị tĩnh mịch không?
+3. **Phân vai rõ ràng**: 
+   - narrator (Ngạn) trầm, kể chuyện
+   - character_male (Ngạn) cùng giọng nhưng có thể khác nhịp
+   - character_female nghe rõ là giọng nữ
+4. **Không artifacts**: không có click/pop, không có giọng vỡ giữa câu
+5. **Tổng thể**: nghe như 1 audiobook horror tiếng Việt thực thụ chưa?
+
+Nếu có chỗ kỳ → mở `test_ghost_lines/line_XXXX_role.wav` để debug line cụ thể.
+
+---

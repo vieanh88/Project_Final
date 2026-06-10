@@ -2,10 +2,10 @@
 #   INFERENCE CONFIG — Chỉnh sửa MỌI đường dẫn & tham số ở đây
 # =============================================================
 # Cách chạy (chỉ cần trỏ tới file config này):
-#     python inference/inference_engine.py    --config inference/inference_config.yaml   # D0 smoke test
-#     python inference/download_female_ref.py --config inference/inference_config.yaml   # D1 verify ref
-#     python inference/nlp_generator.py        --config inference/inference_config.yaml   # D2 text -> script.json
-#     python inference/tts_generator.py        --config inference/inference_config.yaml   # D3 script.json -> audiobook
+#     python inference/inference_engine.py --config inference/inference_config.yaml     # D0 smoke test
+#     python inference/download_female_ref.py --config inference/inference_config.yaml  # D1 verify ref
+#     python inference/nlp_generator.py --config inference/inference_config.yaml        # D2 text -> script.json
+#     python inference/tts_generator.py --config inference/inference_config.yaml        # D3 script.json -> audiobook
 #
 # Ưu tiên giá trị:  CLI  >  file config này  >  default trong code
 #     (vd truyền thêm --checkpoint ... ở dòng lệnh sẽ ĐÈ giá trị engine.checkpoint bên dưới)
@@ -51,8 +51,8 @@ nlp:
   output: null                                    # null = tự sinh output/nlp/<tên-input>.json
   model: gemini-2.5-flash                         # tên model Gemini
   env: ../.env                                    # file .env chứa GEMINI_API_KEY (= Project_Final/.env)
-  chunk_size: 8000                                # số ký tự tối đa mỗi chunk gửi Gemini
-  max_retries: 3                                  # số lần retry khi API fail
+  chunk_size: 10000                               # số ký tự tối đa mỗi chunk gửi Gemini
+  max_retries: 5                                  # số lần retry khi API fail
   thinking: true                                  # false = tắt thinking, nhanh hơn ~2x
   dry_run: false                                  # true = chỉ in prompt, KHÔNG gọi API
 
@@ -85,5 +85,5 @@ verify_ref:
 #   (Dùng engine.* ở trên + references.male_ref làm giọng test)
 # -------------------------------------------------------------
 smoke:
-  text: "Đêm hôm ấy, trời tối đen như mực, không một tiếng động."
+  text: "Đêm hôm ấy, trời tối đen như mực, tôi bước vào trường Đại học Bách Khoa."
   output: output/smoke_test.wav

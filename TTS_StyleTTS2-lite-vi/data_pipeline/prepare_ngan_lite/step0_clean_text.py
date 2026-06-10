@@ -563,6 +563,5 @@ def main():
         logger.info(f"      {output_dir}/filelist_val_clean.txt")
         logger.info("    Sau đó chạy lại A1 -> A2.")
 
-
 if __name__ == "__main__":
     main()

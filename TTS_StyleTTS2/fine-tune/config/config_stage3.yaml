@@ -14,18 +14,18 @@
 # =============================================================================
 
 # --- Đường dẫn & Checkpoint ---
-log_dir: "Models/NganFinetune"
-save_freq: 10                           # Lưu mỗi 10 epochs
+log_dir: "Models/VietnameseFinetune"
+save_freq: 1                            # Lưu mỗi 1 epochs
 log_interval: 20                        # Log mỗi 20 steps  
 device: "cuda"
 
 # --- Training Schedule ---
 # config_ft.yml chỉ có 1 trường "epochs" (không tách 1st/2nd)
-epochs: 50                              # Fine-tune tối đa 50 epochs
+epochs: 30                              # Fine-tune tối đa 30 epochs
                                         # Kiểm tra chất lượng mỗi 5-10 epochs
                                         # Dừng sớm khi nghe đủ tốt
-batch_size: 8                           # Cân bằng VRAM: thử 6-8
-max_len: 400
+batch_size: 2                           # Cân bằng VRAM: thử 6-8
+max_len: 310
 
 # --- Checkpoint Loading ---
 # train_wrapper.py sẽ tự động điền checkpoint tốt nhất từ Stage 2

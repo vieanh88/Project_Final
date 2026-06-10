@@ -8,8 +8,9 @@ data/raw_ood_texts.txt
 .env
 # Bỏ qua môi trường venv
 .venv/
-# Bỏ qua file vscode
+# Bỏ qua file vscode, claude
 .vscode/
+.claude/
 # Bỏ qua file data mp3 csv ...
 *.csv
 *.rttm
@@ -47,7 +48,7 @@ wav_paths.txt
 TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/*.txt
 TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/*.backup_before_filter
 TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/*.bak_windows_paths
-TTS_StyleTTS2-lite-vi/output/*.txt
+TTS_StyleTTS2-lite-vi/output/
 TTS_StyleTTS2/StyleTTS2/Models
 
 # Bỏ qua file tensorboard logs
@@ -56,4 +57,7 @@ TTS_StyleTTS2/StyleTTS2/Models/VietnameseExpressive/tensorboard/
 # Bỏ qua file checkpoint của model
 TTS_StyleTTS2/StyleTTS2/Models/VietnameseBase/*.pth
 TTS_StyleTTS2/StyleTTS2/Models/VietnameseExpressive/*.pth
-TTS_StyleTTS2-lite-vi/kaggle_models
+TTS_StyleTTS2-lite-vi/kaggle_models/
+
+# Bỏ qua documentation
+documents/
