@@ -1,0 +1,32 @@
+{
+  "_about": "Tập câu test CỐ ĐỊNH cho đánh giá Chương 5 (MOS/SMOS, CER, RTF). KHÔNG sửa sau khi đã chạy để số liệu tái lập được.",
+  "_fields": {
+    "in_domain": "Câu thuộc tập validation -> CÓ bản ghi giọng thật (gt_wav). Dùng làm mốc trên (upper anchor) cho MOS/SMOS và sàn CER của ASR. 'text' = nhãn transcript gốc của bản ghi (giữ nguyên để CER trên audio thật khớp với cái được nói).",
+    "out_domain": "Câu trích từ truyện ngoài tập huấn luyện, đa thể loại (kinh dị / ngụ ngôn / lịch sử). KHÔNG có bản ghi thật. Dùng đo CER theo thể loại + đánh giá khả năng khái quát hoá. Số đã được viết thành chữ để tránh lệch chuẩn hoá giữa espeak và ASR.",
+    "gt_wav": "basename file .wav giọng thật; script tự tìm trong references.gt_wav_dir (mặc định kaggle_upload/ngan-data-lite-vi/wavs/)."
+  },
+  "in_domain": [
+    { "id": "id01", "gt_wav": "ngan_00731.wav", "text": "ở với Hồng thấm thoát đến nay đã gần hai mươi năm." },
+    { "id": "id02", "gt_wav": "ngan_00194.wav", "text": "Tôi đến đây không phải để xem bói. Anh ngồi xuống đây. Tôi có tí việc cần trao đổi với anh." },
+    { "id": "id03", "gt_wav": "ngan_00002.wav", "text": "Giang ngồi xuống bên cạnh thắm trên chiếc giường nhỏ trải chiếu ni lông, phụ thắm xếp quần áo và vali. Giang nghiêm mặt nhận xét." },
+    { "id": "id04", "gt_wav": "ngan_01296.wav", "text": "Chộp cái quần mặc vào, còn Giang thì ngồi lên kéo vội cái chăn che thân. Cả ba đều á khẩu, không ai nói được lời nào. Quán lấm lét nhìn vợ, rồi lẹt nhanh ra ngoài, xuống ngồi dưới bếp." },
+    { "id": "id05", "gt_wav": "ngan_01280.wav", "text": "Rồi bà chào Giang và quay lên nhà. Trước khi giã tử, bà bảo Hà." }
+  ],
+  "out_domain": [
+    { "id": "od_horror_01", "genre": "horror", "text": "Sau nhiều đêm mất ngủ, tôi tìm đến một ông thầy già trong làng, tên là Lưu." },
+    { "id": "od_horror_02", "genre": "horror", "text": "Khi ông bắt đầu khấn, ngọn đèn dầu trong nhà chập chờn rồi tắt phụt." },
+    { "id": "od_horror_03", "genre": "horror", "text": "Tôi rùng mình, còn ông Lưu thì mặt tái mét, vội vàng thu đồ bỏ đi." },
+    { "id": "od_horror_04", "genre": "horror", "text": "Mồ hôi lạnh chảy ròng ròng trên cổ Linh." },
+    { "id": "od_horror_05", "genre": "horror", "text": "Nếu My đang ở tầng một, vậy kẻ đang đứng trước mặt cô là ai?" },
+    { "id": "od_horror_06", "genre": "horror", "text": "Tiếng cười vang vọng khắp tòa nhà cổ kính, nhưng không một ai nghe thấy tiếng kêu cứu cuối cùng." },
+    { "id": "od_fable_01", "genre": "fable", "text": "Thượng đế muốn thay đổi vận mệnh của một kẻ ăn xin, bèn biến thành một lão già đến làm phép cho anh ta." },
+    { "id": "od_fable_02", "genre": "fable", "text": "Thượng đế rất thất vọng, lại hỏi rằng nếu cho cậu một trăm triệu thì sao." },
+    { "id": "od_fable_03", "genre": "fable", "text": "Kẻ ăn xin nghe xong, hai mắt phát sáng vì sung sướng." },
+    { "id": "od_fable_04", "genre": "fable", "text": "Thượng đế nghe xong, lẳng lặng bỏ đi." },
+    { "id": "od_history_01", "genre": "history", "text": "Bà Triệu là một nữ anh hùng kiên cường của dân tộc Việt Nam." },
+    { "id": "od_history_02", "genre": "history", "text": "Vào thời kỳ Bắc thuộc, nhân dân ta sống dưới sự cai trị tàn bạo của quân Ngô." },
+    { "id": "od_history_03", "genre": "history", "text": "Bà còn nổi bật với hình ảnh cưỡi voi, tay cầm giáo, ra trận dũng mãnh, khiến quân giặc khiếp sợ." },
+    { "id": "od_history_04", "genre": "history", "text": "Mặc dù sau đó cuộc khởi nghĩa thất bại, bà vẫn mãi là một tượng đài của lòng yêu nước và sự kiên cường." },
+    { "id": "od_history_05", "genre": "history", "text": "Ngày nay, tên tuổi của bà được người dân tưởng nhớ qua những lễ hội và đền thờ." }
+  ]
+}

@@ -88,7 +88,7 @@ class TTSPipeline:
         female = resolve_path(cfg_value(self.cfg, "references", "female_ref"))
         if male and male.exists():
             self.voices["builtin_male"] = {
-                "id": "builtin_male", "label": "Giọng Ngạn (nam) — mặc định",
+                "id": "builtin_male", "label": "Giọng nam — mặc định",
                 "kind": "builtin", "role": "male", "path": male,
             }
         if female and female.exists():

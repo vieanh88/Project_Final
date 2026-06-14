@@ -44,13 +44,10 @@ function escapeHtml(s) { return (s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;
 const accentColor = () => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#7C5CFF";
 function setLoading(btn, on) { btn.classList.toggle("loading", on); btn.disabled = on; }
 function setSelectValue(sel, val) {
-  if (!val) return;
-  if (![...sel.options].some(o => o.value === val)) {
-    const o = document.createElement("option");
-    o.value = val; o.textContent = val + " (từ config)";
-    sel.insertBefore(o, sel.firstChild);
-  }
-  sel.value = val;
+  // Chỉ đồng bộ nếu model trong config nằm trong list options.
+  // Nếu không (vd config dùng model ngoài 5 lựa chọn) -> GIỮ option mặc định
+  // đã đánh dấu `selected` trong HTML.
+  if (val && [...sel.options].some(o => o.value === val)) sel.value = val;
 }
 
 /* ============================================================

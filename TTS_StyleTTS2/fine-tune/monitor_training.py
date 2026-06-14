@@ -93,7 +93,7 @@ if sys.platform == "win32":
 # VÍ DỤ output: "stage1_20260515_163022"
 # Bạn có thể override bằng --wandb-run-name <custom_name> trên CLI
 # Hoặc sửa template dưới đây để có format khác:
-WANDB_RUN_NAME_TEMPLATE = "styleTTS2--{stage_short}-subset-epoch3rerun-ep{target_epochs}-bs{batch_size}"
+WANDB_RUN_NAME_TEMPLATE = "styleTTS2--{stage_short}-ep{target_epochs}-bs{batch_size}"
 
 # Default tags để filter/search runs trên wandb dashboard.
 # Tags stage-specific (stage1/stage2/stage3) sẽ TỰ ĐỘNG thêm vào.
@@ -108,7 +108,7 @@ WANDB_RUN_NAME_TEMPLATE = "styleTTS2--{stage_short}-subset-epoch3rerun-ep{target
 WANDB_DEFAULT_TAGS = ["styletts2", "vietnamese", "vivoice"]  # ← USER CUSTOMIZE
 
 # Wandb project name mặc định — override bằng --wandb-project
-WANDB_DEFAULT_PROJECT = "story-ai-narrator"  # ← USER CUSTOMIZE
+WANDB_DEFAULT_PROJECT = "story-ai-narrator-tts"  # ← USER CUSTOMIZE
 
 
 # CONFIGURATION

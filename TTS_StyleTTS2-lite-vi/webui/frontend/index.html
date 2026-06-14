@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Audiobook Studio · StyleTTS2-lite-vi</title>
+  <title>Audiobook Studio · AI Story Narrator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -19,7 +19,7 @@
         <div class="logo">🎙️</div>
         <div class="brand-text">
           <h1>Audiobook Studio</h1>
-          <p>StyleTTS2-lite-vi · Truyện ma tiếng Việt → audiobook</p>
+          <p>AI Story Narrator · Sách nói tiếng Việt</p>
         </div>
       </div>
       <div class="status" id="engineStatus" title="Trạng thái engine">
@@ -48,7 +48,7 @@
             <div><h2>Văn bản truyện</h2><p class="sub">Dán nội dung, tải truyện mẫu hoặc upload file .txt</p></div>
           </div>
           <textarea id="storyText" class="ta" rows="9"
-            placeholder="Dán văn bản truyện ma tiếng Việt vào đây…"></textarea>
+            placeholder="Dán văn bản truyện tiếng Việt vào đây…"></textarea>
           <div class="row between wrap">
             <div class="row gap wrap">
               <label class="select-wrap">
@@ -67,11 +67,11 @@
             <div class="row gap wrap adv-grid">
               <label class="field"><span class="mini">Model</span>
                 <select id="nlpModel">
-                  <option value="gemini-3.5-flash">Gemini 3.5 Flash (mới nhất)</option>
-                  <option value="gemini-3.1-pro">Gemini 3.1 Pro (chất lượng cao)</option>
-                  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (mặc định)</option>
-                  <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (nhanh)</option>
+                  <option value="gemini-3.1-pro">Gemini 3.1 Pro (mạnh nhất)</option>
+                  <option value="gemini-3.5-flash">Gemini 3.5 Flash (rất mạnh)</option>
+                  <option value="gemini-3.0-flash">Gemini 3 Flash (mạnh)</option>
+                  <option value="gemini-3.1-flash-lite" selected>Gemini 3.1 Flash Lite — mặc định (trung bình)</option>
+                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (nhẹ, nhanh nhất)</option>
                 </select>
               </label>
               <label class="check"><input type="checkbox" id="nlpThinking" /> Thinking</label>
@@ -213,7 +213,7 @@
     </main>
 
     <footer class="foot">
-      <span>StyleTTS2-lite-vi · Đồ án tốt nghiệp HUST</span>
+      <span>AI Story Narrator · Đồ án tốt nghiệp HUST</span>
       <span id="footInfo" class="muted"></span>
     </footer>
   </div>

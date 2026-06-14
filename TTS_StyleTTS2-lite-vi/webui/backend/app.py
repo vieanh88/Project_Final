@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
     print("  Shutting down.")
 
 
-app = FastAPI(title="StyleTTS2-lite-vi Demo", lifespan=lifespan)
+app = FastAPI(title="AI Story Narrator Demo", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )

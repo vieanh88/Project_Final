@@ -47,9 +47,9 @@ references:
 # D2 — NLP GENERATOR (nlp_generator.py): text truyện -> script.json
 # -------------------------------------------------------------
 nlp:
-  input: data/raw_stories/test_ghost_story.txt    # file .txt truyện ma đầu vào
+  input: data/raw_stories/horror_story_test.txt    # file .txt truyện ma đầu vào
   output: null                                    # null = tự sinh output/nlp/<tên-input>.json
-  model: gemini-2.5-flash                         # tên model Gemini
+  model: gemini-3.1-flash                         # tên model Gemini
   env: ../.env                                    # file .env chứa GEMINI_API_KEY (= Project_Final/.env)
   chunk_size: 10000                               # số ký tự tối đa mỗi chunk gửi Gemini
   max_retries: 5                                  # số lần retry khi API fail
@@ -61,8 +61,8 @@ nlp:
 # D3 — TTS GENERATOR (tts_generator.py): script.json -> audiobook .wav
 # -------------------------------------------------------------
 tts:
-  script: output/nlp/test_ghost_story.json        # input script.json (output của D2)
-  output: output/audiobooks/test_ghost_story.wav  # file audiobook .wav xuất ra
+  script: output/nlp/horror_story_test.json        # input script.json (output của D2)
+  output: output/audiobooks/horror_story_test.wav  # file audiobook .wav xuất ra
   narrator_speed: 1.0                             # tốc độ role narrator (thử 0.9 cho kể chuyện dramatic)
   character_speed: 1.0                            # tốc độ role character_male + character_female
   denoise: 0.3                                    # compute_style: % blend noisereduce (0.0 - 1.0)

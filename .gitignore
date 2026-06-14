@@ -49,6 +49,7 @@ TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/*.txt
 TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/*.backup_before_filter
 TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/*.bak_windows_paths
 TTS_StyleTTS2-lite-vi/output/
+TTS_StyleTTS2-lite-vi/data/
 TTS_StyleTTS2/StyleTTS2/Models
 
 # Bỏ qua file tensorboard logs

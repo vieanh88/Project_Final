@@ -57,13 +57,13 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "references": {
         "male_ref":   "StyleTTS2-lite/Models/references/male_reference.wav",
         # File female mặc định nằm NGOÀI project (ở TTS_StyleTTS2). Đổi nếu cần.
-        "female_ref": "../TTS_StyleTTS2/fine-tune/data_pipeline/prepare_vivoice/output/vivoice_clean_wavs/vivoice_0867330.wav",
+        "female_ref": "StyleTTS2-lite/Models/references/female_reference.wav",
     },
     # D2 — nlp_generator.py
     "nlp": {
-        "input":       "data/raw_stories/test_ghost_story.txt",
+        "input":       "data/raw_stories/horror_story_test.txt",
         "output":      None,                # None -> tự sinh output/nlp/<stem>.json
-        "model":       "gemini-2.5-flash",
+        "model":       "gemini-3.1-flash",
         "env":         "../.env",           # = Project_Final/.env
         "chunk_size":  8000,
         "max_retries": 3,
@@ -72,8 +72,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     },
     # D3 — tts_generator.py
     "tts": {
-        "script":          "output/nlp/test_ghost_story.json",
-        "output":          "output/audiobooks/test_ghost_story.wav",
+        "script":          "output/nlp/horror_story_test.json",
+        "output":          "output/audiobooks/horror_story_test.wav",
         "narrator_speed":  1.0,
         "character_speed": 1.0,
         "denoise":         0.3,             # compute_style: % blend noisereduce (0-1)
